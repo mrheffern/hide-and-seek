@@ -20,6 +20,7 @@ The audit covered the mobile client, background location task, shared protocol, 
 - Non-JSON server responses produced an unhelpful client parsing error.
 - Degenerate boundaries with duplicate or collinear points could be saved.
 - A successful one-shot lobby GPS fix could be lost if the room hibernated before the five-second checkpoint, making a player fall from Weak or Live back to GPS unavailable.
+- Lobby readiness relied on one immediate GPS fix, so indoor-quality fixes could become stale without giving the receiver enough outdoor time to stabilize. The lobby now watches until the server observes five continuous seconds at competitive accuracy, then latches readiness and turns the foreground watch off.
 
 ## Verification
 

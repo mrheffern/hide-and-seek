@@ -12,6 +12,7 @@ import {
   advanceRoomClock,
   applyCommand,
   createRoomState,
+  LOBBY_GPS_VERIFICATION_MS,
   playerIdForToken,
   snapshotForPlayer,
   type RuleContext,
@@ -109,6 +110,14 @@ function setup(rules: Partial<GameRules> = {}) {
         if (player.status === "active") location(player.id, positions.get(player.id) ?? point(0));
       }
     },
+    verifyLobbyGps() {
+      for (let elapsed = 0; elapsed <= LOBBY_GPS_VERIFICATION_MS; elapsed += 1_000) {
+        if (elapsed > 0) now += 1_000;
+        for (const player of Object.values(state.players)) {
+          if (player.status === "active") location(player.id, positions.get(player.id) ?? point(0));
+        }
+      }
+    },
   };
   return game;
 }
@@ -122,7 +131,7 @@ function configureAndStart(
   }
   expect(game.command("host", { type: "set_boundary", boundary }).ok).toBe(true);
   expect(game.command("host", { type: "set_seeker", playerId: "seeker" }).ok).toBe(true);
-  game.refreshAll();
+  game.verifyLobbyGps();
   expect(game.command("host", { type: "start_match" }).ok).toBe(true);
   if (options.advanceToActive !== false) {
     game.tick(game.state.rules.hidingDurationMs + 1);
@@ -154,6 +163,28 @@ describe("match setup and authority", () => {
     game.location("host", point(0));
     game.location("seeker", point(20), { accuracyMeters: 30 });
     expect(game.command("host", { type: "start_match" }).code).toBe("players_not_ready");
+  });
+
+  it("latches lobby GPS readiness only after a precise signal is sustained", () => {
+    const game = setup();
+    const status = () => snapshotForPlayer(game.state, "host", game.now()).players.find((player) => player.id === "host")!;
+
+    game.location("host", point(0));
+    expect(status()).toMatchObject({ gpsStatus: "live", gpsReady: false });
+    game.tick(2_000);
+    game.location("host", point(0));
+    expect(status().gpsReady).toBe(false);
+
+    game.tick(game.state.rules.maxObservationGapMs + 1);
+    game.location("host", point(0));
+    for (let elapsed = 1_000; elapsed <= LOBBY_GPS_VERIFICATION_MS; elapsed += 1_000) {
+      game.tick(1_000);
+      game.location("host", point(0));
+    }
+    expect(status()).toMatchObject({ gpsStatus: "live", gpsReady: true });
+
+    game.tick(2 * 60_000);
+    expect(status()).toMatchObject({ gpsStatus: "stale", gpsReady: true });
   });
 
   it("requires at least two players", () => {
@@ -225,6 +256,7 @@ describe("match setup and authority", () => {
     game.command("host", { type: "set_seeker", playerId: "seeker" });
     game.location("host", point(0));
     game.location("seeker", point(70));
+    game.verifyLobbyGps();
     expect(game.command("host", { type: "start_match" }).code).toBe("players_outside_boundary");
   });
 

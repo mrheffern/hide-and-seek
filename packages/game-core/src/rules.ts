@@ -37,6 +37,7 @@ export const DEFAULT_RULES: GameRules = {
 };
 
 export const BOUNDARY_WARNING_DISTANCE_METERS = 10;
+export const LOBBY_GPS_VERIFICATION_MS = 5_000;
 
 export interface RuleContext {
   now: number;
@@ -68,6 +69,8 @@ function addEvent(
 
 function clearPlayerLocation(player: PlayerRecord): void {
   player.latestFix = undefined;
+  player.lobbyGpsVerificationStartedAt = undefined;
+  player.lobbyGpsVerifiedAt = undefined;
   player.connected = false;
   player.outsideBoundary = false;
   player.boundaryOutsideMs = 0;
@@ -221,6 +224,34 @@ function gpsStatusFor(state: RoomState, player: PlayerRecord, now: number): GpsS
   return "live";
 }
 
+function updateLobbyGpsVerification(
+  state: RoomState,
+  player: PlayerRecord,
+  previous: AcceptedPositionFix | undefined,
+  fix: PositionFix,
+  context: RuleContext,
+): void {
+  if (state.phase !== "lobby" || player.lobbyGpsVerifiedAt !== undefined) return;
+  const precise = fix.accuracyMeters <= state.rules.maxCompetitiveAccuracyMeters
+    && fix.sampleAgeMs <= state.rules.maxFixAgeMs;
+  if (!precise) {
+    player.lobbyGpsVerificationStartedAt = undefined;
+    return;
+  }
+  const previousWasContinuous = previous !== undefined
+    && previous.accuracyMeters <= state.rules.maxCompetitiveAccuracyMeters
+    && previous.sampleAgeMs <= state.rules.maxFixAgeMs
+    && context.now - previous.receivedAtMs <= state.rules.maxObservationGapMs;
+  if (!previousWasContinuous || player.lobbyGpsVerificationStartedAt === undefined) {
+    player.lobbyGpsVerificationStartedAt = context.now;
+    return;
+  }
+  if (context.now - player.lobbyGpsVerificationStartedAt >= LOBBY_GPS_VERIFICATION_MS) {
+    player.lobbyGpsVerifiedAt = context.now;
+    player.lobbyGpsVerificationStartedAt = undefined;
+  }
+}
+
 function acceptedDeviceStatus(
   report: DeviceStatusReport | undefined,
   now: number,
@@ -337,16 +368,16 @@ function startMatch(state: RoomState, actorId: string, context: RuleContext): Ru
     return fail("seeker_required", "Select exactly one seeker.");
   }
   for (const player of players) {
-    const fix = usableFix(state, player, context.now);
-    if (!fix) {
-      // Wake every lobby client so it can take a fresh, one-shot GPS reading. This
-      // keeps continuous background tracking off while everyone is waiting.
+    const fix = player.latestFix;
+    if (player.lobbyGpsVerifiedAt === undefined || !fix) {
+      // Wake every unverified lobby client so it can keep a foreground GPS watch
+      // running until the server observes a sustained precise signal.
       addEvent(state, context, {
         type: "gps_check_requested",
         actorId,
         message: "Refreshing every player's GPS before the match starts.",
       });
-      return fail("players_not_ready", `${player.name} needs a recent precise location before starting.`);
+      return fail("players_not_ready", `${player.name} needs to verify GPS before starting.`);
     }
     if (!pointInPolygon(fix, state.boundary)) {
       return fail("players_outside_boundary", `${player.name} must enter the boundary before starting.`);
@@ -797,6 +828,7 @@ export function acceptLocation(
   if (previous?.sessionId === fix.sessionId && fix.sequence <= previous.sequence) {
     return fail("replayed_location", "Location sample was already processed.");
   }
+  updateLobbyGpsVerification(state, player, previous, fix, context);
   player.latestFix = { ...fix, receivedAtMs: context.now };
   if (nextDeviceStatus) player.deviceStatus = nextDeviceStatus;
   player.connected = true;
@@ -828,7 +860,7 @@ export function snapshotForPlayer(state: RoomState, viewerId: string, now: numbe
       status: player.status,
       connected: player.connected,
       isHost: player.isHost,
-      gpsReady: gpsStatus === "live",
+      gpsReady: state.phase === "lobby" ? player.lobbyGpsVerifiedAt !== undefined : gpsStatus === "live",
       gpsStatus,
       gpsAgeMs: player.latestFix ? fixAgeMs(player.latestFix, now) : undefined,
       gpsAccuracyMeters: player.latestFix?.accuracyMeters,

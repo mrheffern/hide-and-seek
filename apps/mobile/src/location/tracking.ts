@@ -21,7 +21,13 @@ let trackingRevision = 0;
 let pendingStart: { revision: number; promise: Promise<TrackingReadiness> } | undefined;
 let lobbySequence = 0;
 const lobbyRuntimeId = `lobby-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-const lobbyRefreshes = new Map<string, Promise<LobbyLocationReadiness>>();
+let lobbyTrackingRevision = 0;
+let activeLobbyRefresh: {
+  key: string;
+  revision: number;
+  promise: Promise<LobbyLocationReadiness>;
+  cancel: () => void;
+} | undefined;
 
 function serializeTracking<T>(operation: () => Promise<T>): Promise<T> {
   const result = trackingQueue.then(operation, operation);
@@ -105,55 +111,93 @@ async function startTracking(revision: number): Promise<TrackingReadiness> {
   }
 }
 
-/**
- * Take one foreground fix for lobby readiness without leaving Android's location
- * foreground service running. Concurrent snapshot/app-state callbacks share one fix.
- */
+/** Keep a foreground-only watch alive until the server verifies a sustained precise signal. */
 export function refreshLobbyLocation(session: StoredSession): Promise<LobbyLocationReadiness> {
   const key = `${session.apiUrl}|${session.roomCode}|${session.playerId}|${session.locationSessionId}`;
-  const pending = lobbyRefreshes.get(key);
-  if (pending) return pending;
-  const promise = (async (): Promise<LobbyLocationReadiness> => {
+  if (activeLobbyRefresh?.key === key) return activeLobbyRefresh.promise;
+  activeLobbyRefresh?.cancel();
+  const revision = ++lobbyTrackingRevision;
+  let subscription: Location.LocationSubscription | undefined;
+  let settled = false;
+  let resolveResult!: (result: LobbyLocationReadiness) => void;
+  const isCurrent = () => !settled && activeLobbyRefresh?.revision === revision;
+  const finish = (result: LobbyLocationReadiness) => {
+    if (settled) return;
+    settled = true;
+    subscription?.remove();
+    if (activeLobbyRefresh?.revision === revision) activeLobbyRefresh = undefined;
+    resolveResult(result);
+  };
+  const promise = new Promise<LobbyLocationReadiness>((resolve) => {
+    resolveResult = resolve;
+  });
+  activeLobbyRefresh = {
+    key,
+    revision,
+    promise,
+    cancel: () => finish({ ready: false, message: "Lobby GPS verification stopped." }),
+  };
+  void (async () => {
     recordDiagnostic({ category: "location", name: "lobby_location_requested" });
     try {
       if (!await Location.hasServicesEnabledAsync()) {
-        return { ready: false, message: "Turn on device location services." };
+        finish({ ready: false, message: "Turn on device location services." });
+        return;
       }
       const foreground = await Location.requestForegroundPermissionsAsync();
       if (foreground.status !== "granted") {
-        return { ready: false, message: "Precise foreground location permission is required." };
+        finish({ ready: false, message: "Precise foreground location permission is required." });
+        return;
       }
-      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      const now = Date.now();
-      lobbySequence += 1;
-      const result = await uploadLocation(session, {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        accuracyMeters: Math.max(0, location.coords.accuracy ?? 9_999),
-        sampledAtMs: location.timestamp,
-        sampleAgeMs: Math.max(0, now - location.timestamp),
-        sequence: lobbySequence,
-        sessionId: `${session.locationSessionId}-${lobbyRuntimeId}`.slice(0, 100),
-      }, await readDeviceStatus(now));
-      recordDiagnostic({
-        level: "debug",
-        category: "location",
-        name: "lobby_location_accepted",
-        payload: { version: result.snapshot.version, accuracyMeters: location.coords.accuracy },
+      if (!isCurrent()) return;
+      let uploads = Promise.resolve();
+      subscription = await Location.watchPositionAsync({
+        accuracy: Location.Accuracy.BestForNavigation,
+        timeInterval: 1_000,
+        distanceInterval: 0,
+      }, (location) => {
+        uploads = uploads.then(async () => {
+          if (!isCurrent()) return;
+          const now = Date.now();
+          lobbySequence += 1;
+          const result = await uploadLocation(session, {
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+            accuracyMeters: Math.max(0, location.coords.accuracy ?? 9_999),
+            sampledAtMs: location.timestamp,
+            sampleAgeMs: Math.max(0, now - location.timestamp),
+            sequence: lobbySequence,
+            sessionId: `${session.locationSessionId}-${lobbyRuntimeId}`.slice(0, 100),
+          }, await readDeviceStatus(now));
+          recordDiagnostic({
+            level: "debug",
+            category: "location",
+            name: "lobby_location_accepted",
+            payload: {
+              version: result.snapshot.version,
+              accuracyMeters: location.coords.accuracy,
+              gpsReady: result.snapshot.players.find((player) => player.id === result.snapshot.selfId)?.gpsReady,
+            },
+          });
+          const self = result.snapshot.players.find((player) => player.id === result.snapshot.selfId);
+          if (self?.gpsReady) {
+            finish({ ready: true, message: "GPS verified for this lobby.", snapshot: result.snapshot });
+          }
+        }).catch((error) => {
+          if (isCurrent()) recordDiagnosticError("location", "lobby_location_failed", error);
+        });
       });
-      return { ready: true, message: "GPS checked for the lobby.", snapshot: result.snapshot };
+      if (!isCurrent()) subscription.remove();
     } catch (error) {
       recordDiagnosticError("location", "lobby_location_failed", error);
-      return { ready: false, message: error instanceof Error ? error.message : "Could not check GPS for the lobby." };
+      finish({ ready: false, message: error instanceof Error ? error.message : "Could not verify GPS for the lobby." });
     }
-  })().finally(() => {
-    if (lobbyRefreshes.get(key) === promise) lobbyRefreshes.delete(key);
-  });
-  lobbyRefreshes.set(key, promise);
+  })();
   return promise;
 }
 
 export function stopMatchTracking(): Promise<void> {
+  activeLobbyRefresh?.cancel();
   ++trackingRevision;
   return serializeTracking(async () => {
     recordDiagnostic({ category: "location", name: "tracking_stop_requested" });

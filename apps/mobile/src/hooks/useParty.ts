@@ -237,7 +237,8 @@ export function useParty() {
           if (isCurrent() && shouldTrackPlayer(latestSnapshot.current) && !result.ready) setStatus(result.message);
         });
       } else if (latestSnapshot.current?.phase === "lobby"
-        && latestSnapshot.current.players.find((player) => player.id === latestSnapshot.current?.selfId)?.status === "active") {
+        && latestSnapshot.current.players.find((player) => player.id === latestSnapshot.current?.selfId)?.status === "active"
+        && !latestSnapshot.current.players.find((player) => player.id === latestSnapshot.current?.selfId)?.gpsReady) {
         void stopMatchTracking().then(async () => {
           if (!isCurrent() || latestSnapshot.current?.phase !== "lobby") return;
           const result = await refreshLobbyLocation(session);
@@ -266,6 +267,7 @@ export function useParty() {
   }, [applySnapshot, session]);
 
   const selfStatus = snapshot?.players.find((player) => player.id === snapshot.selfId)?.status;
+  const selfGpsReady = snapshot?.players.find((player) => player.id === snapshot.selfId)?.gpsReady;
   const gpsCheckEventId = snapshot?.phase === "lobby"
     ? [...snapshot.events].reverse().find((event) => event.type === "gps_check_requested")?.id
     : undefined;
@@ -276,7 +278,7 @@ export function useParty() {
       void startMatchTracking().then((result) => {
         if (!cancelled && mounted.current && activeSession.current === session) setStatus(result.message);
       });
-    } else if (snapshot.phase === "lobby" && selfStatus === "active") {
+    } else if (snapshot.phase === "lobby" && selfStatus === "active" && !selfGpsReady) {
       void stopMatchTracking().then(async () => {
         if (cancelled || !mounted.current || activeSession.current !== session || latestSnapshot.current?.phase !== "lobby") return;
         const result = await refreshLobbyLocation(session);
@@ -288,7 +290,7 @@ export function useParty() {
       void stopMatchTracking();
     }
     return () => { cancelled = true; };
-  }, [applySnapshot, gpsCheckEventId, selfStatus, snapshot?.phase, session]);
+  }, [applySnapshot, gpsCheckEventId, selfGpsReady, selfStatus, snapshot?.phase, session]);
 
   const begin = useCallback(async (operation: () => Promise<SessionResponse>) => {
     if (actionInFlight.current || activeSession.current) return;

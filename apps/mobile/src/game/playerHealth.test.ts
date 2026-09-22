@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { VisiblePlayer } from "@hide-and-seek/protocol";
-import { batteryStatusText, connectionStatusText, currentGpsAgeMs, gpsStatusText } from "./playerHealth";
+import { batteryStatusText, connectionStatusText, currentGpsAgeMs, gpsStatusText, lobbyGpsStatusText } from "./playerHealth";
 
 const player: VisiblePlayer = {
   id: "p1",
@@ -30,6 +30,11 @@ describe("player health presentation", () => {
     expect(gpsStatusText({ ...player, gpsStatus: "stale" }, 10_000, 12_000)).toBe(
       "GPS stale · 3s ago",
     );
+  });
+
+  it("distinguishes lobby verification from a momentarily precise fix", () => {
+    expect(lobbyGpsStatusText({ ...player, gpsReady: false }, 10_000, 12_000)).toBe("GPS stabilizing · ±3m");
+    expect(lobbyGpsStatusText(player, 10_000, 120_000)).toBe("GPS verified · ±3m");
   });
 
   it("shows connection type and fresh battery health", () => {

@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   stopUpdates: vi.fn(),
   updatesStarted: vi.fn(),
   currentPosition: vi.fn(),
+  watchPosition: vi.fn(),
+  removeWatcher: vi.fn(),
   uploadLocation: vi.fn(),
   deviceStatus: vi.fn(),
   notificationChannel: vi.fn(),
@@ -23,7 +25,8 @@ vi.mock("expo-location", () => ({
   stopLocationUpdatesAsync: mocks.stopUpdates,
   hasStartedLocationUpdatesAsync: mocks.updatesStarted,
   getCurrentPositionAsync: mocks.currentPosition,
-  Accuracy: { High: "high" },
+  watchPositionAsync: mocks.watchPosition,
+  Accuracy: { High: "high", BestForNavigation: "best-for-navigation" },
   ActivityType: { Fitness: "fitness" },
 }));
 
@@ -70,8 +73,11 @@ beforeEach(() => {
     timestamp: 10_000,
     coords: { latitude: 34, longitude: -118, accuracy: 4 },
   });
+  mocks.watchPosition.mockResolvedValue({ remove: mocks.removeWatcher });
   mocks.deviceStatus.mockResolvedValue({ networkType: "wifi" });
-  mocks.uploadLocation.mockResolvedValue({ snapshot: { version: 2 } });
+  mocks.uploadLocation.mockResolvedValue({
+    snapshot: { version: 2, selfId: "player-1", players: [{ id: "player-1", gpsReady: true }] },
+  });
 });
 
 describe("locked-phone location tracking", () => {
@@ -130,15 +136,45 @@ describe("locked-phone location tracking", () => {
     expect(mocks.startUpdates).not.toHaveBeenCalled();
   });
 
-  it("checks lobby GPS once without requesting background permission or starting a service", async () => {
+  it("keeps a foreground lobby watch running until the server verifies sustained GPS", async () => {
+    let onLocation!: (location: { timestamp: number; coords: { latitude: number; longitude: number; accuracy: number } }) => void;
+    mocks.watchPosition.mockImplementation(async (_options, callback) => {
+      onLocation = callback;
+      return { remove: mocks.removeWatcher };
+    });
+    mocks.uploadLocation
+      .mockResolvedValueOnce({
+        snapshot: { version: 2, selfId: "player-1", players: [{ id: "player-1", gpsReady: false }] },
+      })
+      .mockResolvedValueOnce({
+        snapshot: { version: 3, selfId: "player-1", players: [{ id: "player-1", gpsReady: true }] },
+      });
     const first = refreshLobbyLocation(session);
     const second = refreshLobbyLocation(session);
     expect(second).toBe(first);
-    await expect(first).resolves.toMatchObject({ ready: true, snapshot: { version: 2 } });
-    expect(mocks.currentPosition).toHaveBeenCalledOnce();
-    expect(mocks.uploadLocation).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(mocks.watchPosition).toHaveBeenCalledOnce());
+    expect(mocks.watchPosition).toHaveBeenCalledWith(expect.objectContaining({
+      accuracy: "best-for-navigation",
+      timeInterval: 1_000,
+      distanceInterval: 0,
+    }), expect.any(Function));
+    onLocation({ timestamp: Date.now(), coords: { latitude: 34, longitude: -118, accuracy: 4 } });
+    await vi.waitFor(() => expect(mocks.uploadLocation).toHaveBeenCalledOnce());
+    expect(mocks.removeWatcher).not.toHaveBeenCalled();
+    onLocation({ timestamp: Date.now(), coords: { latitude: 34, longitude: -118, accuracy: 4 } });
+    await expect(first).resolves.toMatchObject({ ready: true, snapshot: { version: 3 } });
+    expect(mocks.uploadLocation).toHaveBeenCalledTimes(2);
+    expect(mocks.removeWatcher).toHaveBeenCalledOnce();
     expect(mocks.backgroundPermission).not.toHaveBeenCalled();
     expect(mocks.startUpdates).not.toHaveBeenCalled();
+  });
+
+  it("removes an unfinished lobby watch when location tracking stops", async () => {
+    const pending = refreshLobbyLocation(session);
+    await vi.waitFor(() => expect(mocks.watchPosition).toHaveBeenCalledOnce());
+    await stopMatchTracking();
+    await expect(pending).resolves.toEqual({ ready: false, message: "Lobby GPS verification stopped." });
+    expect(mocks.removeWatcher).toHaveBeenCalledOnce();
   });
 
   it("stops active updates and always resets notification state", async () => {

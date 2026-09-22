@@ -20,7 +20,7 @@ import type { Coordinate, GameCommand, RoomSnapshot } from "@hide-and-seek/proto
 import { useParty } from "./src/hooks/useParty";
 import { lobbyStartReadiness } from "./src/game/lobbyReadiness";
 import { appendBoundaryPoint, coordinateFromMapPress } from "./src/map/boundaryDraft";
-import { batteryStatusText, connectionStatusText, gpsStatusText } from "./src/game/playerHealth";
+import { batteryStatusText, connectionStatusText, gpsStatusText, lobbyGpsStatusText } from "./src/game/playerHealth";
 import type { ConnectionState } from "./src/reconnect";
 import { recordDiagnostic } from "./src/diagnostics";
 
@@ -156,7 +156,7 @@ function Welcome({
           {busy ? <ActivityIndicator color={colors.green} /> : null}
           {status ? <Text style={styles.statusText}>{status}</Text> : null}
           <Text style={styles.privacyNote}>
-            Location is collected only while you participate in a match.
+            Location is collected while verifying lobby readiness and during a match.
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -326,7 +326,7 @@ function PartyPanel({
             <View style={[styles.roleDot, { backgroundColor: markerColor(player.role, player.id === snapshot.selfId) }]} />
             <View style={styles.playerCopy}>
               <Text style={styles.playerName}>{player.name}{player.id === snapshot.selfId ? " · You" : ""}</Text>
-              <Text style={styles.playerMeta}>{player.role}{player.isHost ? " · Host" : ""} · {gpsStatusText(player, snapshot.serverNow, now)}</Text>
+              <Text style={styles.playerMeta}>{player.role}{player.isHost ? " · Host" : ""} · {lobbyGpsStatusText(player, snapshot.serverNow, now)}</Text>
               <Text style={styles.playerHealth}>
                 {connectionStatusText(player, now)}
                 {batteryStatusText(player, now) ? ` · ${batteryStatusText(player, now)}` : ""}

@@ -65,6 +65,8 @@ function startGame(game: ReturnType<typeof setup>) {
   game.command("host", { type: "set_seeker", playerId: "seeker" });
   game.location("host", point(0), 1);
   game.location("seeker", point(20), 1);
+  game.state.players.host.lobbyGpsVerifiedAt = game.now();
+  game.state.players.seeker.lobbyGpsVerifiedAt = game.now();
   expect(game.command("host", { type: "start_match" }).ok).toBe(true);
   game.tick(2);
   game.location("host", point(0), 2);
@@ -100,6 +102,7 @@ describe("authoritative visibility", () => {
     game.location("host", point(0), 1);
     game.location("seeker", point(20), 1);
     game.location("other-hider", point(10), 1);
+    for (const player of Object.values(game.state.players)) player.lobbyGpsVerifiedAt = game.now();
     expect(game.command("host", { type: "start_match" }).ok).toBe(true);
     game.tick(2);
     game.location("seeker", point(4), 2);

@@ -35,6 +35,19 @@ export function gpsStatusText(
   }
 }
 
+export function lobbyGpsStatusText(
+  player: VisiblePlayer,
+  snapshotServerNow: number,
+  now: number,
+): string {
+  const accuracy = player.gpsAccuracyMeters === undefined
+    ? ""
+    : ` · ±${Math.round(player.gpsAccuracyMeters)}m`;
+  if (player.gpsReady) return `GPS verified${accuracy}`;
+  if (player.gpsStatus === "live") return `GPS stabilizing${accuracy}`;
+  return gpsStatusText(player, snapshotServerNow, now);
+}
+
 export function connectionStatusText(player: VisiblePlayer, now: number): string {
   const report = player.deviceStatus;
   const reportIsFresh = report && now - report.receivedAtMs <= 60_000;

@@ -72,6 +72,8 @@ export interface PlayerRecord {
   boundaryOutsideMs: number;
   boundaryLastObservedAt?: number;
   deviceStatus?: AcceptedDeviceStatus;
+  lobbyGpsVerificationStartedAt?: number;
+  lobbyGpsVerifiedAt?: number;
 }
 
 export interface TrapRecord extends Coordinate {
