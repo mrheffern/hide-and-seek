@@ -20,6 +20,7 @@ import {
   setDiagnosticContext,
 } from "../diagnostics";
 import { exportDiagnostics as exportDiagnosticsFile } from "../diagnostics/export";
+import { leavePartySession } from "./leaveParty";
 import { acceptsSnapshot, shouldTrackPlayer } from "./partyState";
 
 function toStoredSession(response: SessionResponse): StoredSession {
@@ -363,19 +364,7 @@ export function useParty() {
     actionInFlight.current = true;
     setBusy(true);
     recordDiagnostic({ category: "party", name: "leave_requested" });
-    await stopMatchTracking();
-    await clearStoredSession().catch((error) => recordDiagnosticError("lifecycle", "session_clear_failed", error));
-    let flushDeadline: ReturnType<typeof setTimeout> | undefined;
-    await Promise.race([
-      flushDiagnostics(session, true),
-      new Promise<void>((resolve) => { flushDeadline = setTimeout(resolve, 1_000); }),
-    ]).catch((error) => recordDiagnosticError("diagnostics", "leave_flush_failed", error));
-    if (flushDeadline) clearTimeout(flushDeadline);
-    try {
-      await sendCommand(session, { type: "leave_party" });
-    } catch {
-      // Local cleanup still succeeds if the network is unavailable.
-    }
+    await leavePartySession(session);
     if (!mounted.current) return;
     setSession(null);
     setSnapshot(null);
