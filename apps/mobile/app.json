@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "Out of Sight",
+    "slug": "out-of-sight",
+    "scheme": "outofsight",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hideandseek.outofsight",
+      "infoPlist": {
+        "NSAllowsLocalNetworking": true
+      }
+    },
+    "android": {
+      "package": "com.hideandseek.outofsight",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Out of Sight uses your location while a match is running.",
+          "locationAlwaysAndWhenInUsePermission": "Out of Sight uses your location during a match, including while your phone is locked.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      "expo-secure-store",
+      "expo-notifications",
+      "expo-sqlite",
+      "expo-sharing",
+      "@sentry/react-native"
+    ],
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "gameApiUrl": "http://10.0.2.2:8787"
+    }
+  }
+}
