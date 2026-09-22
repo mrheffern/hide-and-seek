@@ -215,6 +215,25 @@ describe("room state and audit consistency", () => {
     expect(events).toEqual([{ match_id: "finished-match", player_name: "Host" }, { match_id: null, player_name: "Guest" }]);
   });
 
+  it("persists an accepted one-shot lobby fix before the room can hibernate", async () => {
+    const now = 1_000_000;
+    vi.spyOn(Date, "now").mockReturnValue(now);
+    const state = stateFixture();
+    const { request, put } = await roomFixture(state);
+    const response = await request("location", "host-token", { protocolVersion: 1, fix: {
+      latitude: 34,
+      longitude: -118,
+      accuracyMeters: 30,
+      sampledAtMs: now,
+      sampleAgeMs: 0,
+      sequence: 1,
+      sessionId: "lobby-gps-session",
+    } });
+    expect(response.status).toBe(200);
+    expect(state.players["host-id"].latestFix?.accuracyMeters).toBe(30);
+    expect(put).toHaveBeenCalledWith("room", state);
+  });
+
   it("persists clock transitions even when the triggering GPS sample is rejected", async () => {
     const state = stateFixture();
     state.phase = "hiding";

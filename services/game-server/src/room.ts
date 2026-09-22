@@ -576,7 +576,10 @@ export class GameRoom extends DurableObject<Env> {
           this.room.phase !== criticalBefore.phase ||
           this.room.players[playerId].status !== criticalBefore.status ||
           this.room.immobilized?.trapId !== criticalBefore.immobilizedTrapId;
-        await this.persist(criticalChange || !result.ok);
+        // Lobby tracking is intentionally one-shot, so there may be no later
+        // location request to checkpoint this readiness fix before hibernation.
+        const lobbyReadinessFix = result.ok && stateBefore?.phase === "lobby";
+        await this.persist(criticalChange || !result.ok || lobbyReadinessFix);
         await this.broadcast();
       }
       return json({ ...result, snapshot: snapshotForPlayer(this.room, playerId, Date.now()) }, result.ok ? 200 : 409);

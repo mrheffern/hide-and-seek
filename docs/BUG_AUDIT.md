@@ -19,6 +19,7 @@ The audit covered the mobile client, background location task, shared protocol, 
 - Malformed JSON could produce an internal error, and invalid characters in room-code paths were silently removed.
 - Non-JSON server responses produced an unhelpful client parsing error.
 - Degenerate boundaries with duplicate or collinear points could be saved.
+- A successful one-shot lobby GPS fix could be lost if the room hibernated before the five-second checkpoint, making a player fall from Weak or Live back to GPS unavailable.
 
 ## Verification
 
