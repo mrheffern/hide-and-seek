@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { VisiblePlayer } from "@hide-and-seek/protocol";
-import { batteryStatusText, connectionStatusText, currentGpsAgeMs, gpsStatusText, lobbyGpsStatusText } from "./playerHealth";
+import {
+  batteryStatusText,
+  connectionStatusText,
+  currentGpsAgeMs,
+  gpsStatusText,
+  isGpsResumeBlocker,
+  lobbyGpsStatusText,
+  pausedGpsStatusPlayers,
+} from "./playerHealth";
 
 const player: VisiblePlayer = {
   id: "p1",
@@ -45,5 +53,25 @@ describe("player health presentation", () => {
   it("does not present old battery data as current", () => {
     expect(batteryStatusText(player, 70_001)).toBeUndefined();
     expect(connectionStatusText({ ...player, connected: false }, 70_001)).toBe("Reconnecting");
+  });
+
+  it("shows the viewer first and every other active player blocking a paused match", () => {
+    const self = { ...player, id: "self", name: "Me" };
+    const stale = { ...player, id: "stale", name: "Stale", gpsStatus: "stale" as const };
+    const weak = { ...player, id: "weak", name: "Weak", gpsStatus: "weak" as const };
+    const healthy = { ...player, id: "healthy", name: "Healthy" };
+    const eliminated = { ...stale, id: "out", name: "Out", status: "eliminated" as const };
+
+    expect(pausedGpsStatusPlayers([stale, healthy, self, weak, eliminated], self.id).map(({ id }) => id))
+      .toEqual(["self", "stale", "weak"]);
+    expect(isGpsResumeBlocker(stale)).toBe(true);
+    expect(isGpsResumeBlocker(weak)).toBe(true);
+    expect(isGpsResumeBlocker(healthy)).toBe(false);
+    expect(isGpsResumeBlocker(eliminated)).toBe(false);
+  });
+
+  it("does not duplicate the viewer when their GPS is blocking resume", () => {
+    const self = { ...player, gpsStatus: "missing" as const };
+    expect(pausedGpsStatusPlayers([self], self.id)).toEqual([self]);
   });
 });

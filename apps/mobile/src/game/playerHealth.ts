@@ -73,3 +73,14 @@ export function batteryStatusText(player: VisiblePlayer, now: number): string | 
   }
   return `${report.batteryPercent}% battery${report.isCharging ? " · charging" : ""}${report.lowPowerMode ? " · low power" : ""}`;
 }
+
+export function isGpsResumeBlocker(player: VisiblePlayer): boolean {
+  return player.status === "active" && player.gpsStatus !== "live";
+}
+
+/** Show the viewer once, followed by every other player whose GPS prevents resume. */
+export function pausedGpsStatusPlayers(players: VisiblePlayer[], selfId: string): VisiblePlayer[] {
+  const self = players.find((player) => player.id === selfId);
+  const blockers = players.filter((player) => player.id !== selfId && isGpsResumeBlocker(player));
+  return self ? [self, ...blockers] : blockers;
+}

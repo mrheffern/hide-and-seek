@@ -20,7 +20,14 @@ import type { Coordinate, GameCommand, RoomSnapshot } from "@hide-and-seek/proto
 import { useParty } from "./src/hooks/useParty";
 import { lobbyStartReadiness } from "./src/game/lobbyReadiness";
 import { appendBoundaryPoint, coordinateFromMapPress } from "./src/map/boundaryDraft";
-import { batteryStatusText, connectionStatusText, gpsStatusText, lobbyGpsStatusText } from "./src/game/playerHealth";
+import {
+  batteryStatusText,
+  connectionStatusText,
+  gpsStatusText,
+  isGpsResumeBlocker,
+  lobbyGpsStatusText,
+  pausedGpsStatusPlayers,
+} from "./src/game/playerHealth";
 import type { ConnectionState } from "./src/reconnect";
 import { recordDiagnostic } from "./src/diagnostics";
 
@@ -356,14 +363,43 @@ function PartyPanel({
       </View>
     );
   }
+  const gpsBlockers = snapshot.players.filter(isGpsResumeBlocker);
+  const pausedPlayers = pausedGpsStatusPlayers(snapshot.players, snapshot.selfId);
   return (
     <View style={styles.panel}>
       {snapshot.phase === "paused" ? (
         <View style={styles.pausedBanner}>
           <Text style={styles.pausedTitle}>MATCH PAUSED</Text>
           <Text style={styles.pausedText}>
-            {isHost ? "Resume when every active player has live GPS." : "The host will resume when everyone is ready."}
+            {gpsBlockers.length
+              ? `Waiting for ${gpsBlockers.length} ${gpsBlockers.length === 1 ? "player's" : "players'"} GPS to return.`
+              : isHost
+                ? "Everyone has live GPS. You can resume the match."
+                : "Everyone has live GPS. Waiting for the host to resume."}
           </Text>
+          <Text style={styles.pausedSectionLabel}>GPS STATUS</Text>
+          <View style={styles.pausedRoster}>
+            {pausedPlayers.map((player) => {
+              const blocking = isGpsResumeBlocker(player);
+              const battery = batteryStatusText(player, now);
+              return (
+                <View key={player.id} style={styles.pausedPlayerRow}>
+                  <View style={styles.pausedPlayerHeader}>
+                    <Text style={styles.pausedPlayerName}>
+                      {player.name}{player.id === snapshot.selfId ? " · You" : ""}
+                    </Text>
+                    <Text style={[styles.pausedPlayerBadge, !blocking && styles.pausedPlayerBadgeReady]}>
+                      {blocking ? "NEEDS GPS" : "READY"}
+                    </Text>
+                  </View>
+                  <Text style={styles.pausedPlayerGps}>{gpsStatusText(player, snapshot.serverNow, now)}</Text>
+                  <Text style={styles.pausedPlayerHealth}>
+                    {connectionStatusText(player, now)}{battery ? ` · ${battery}` : ""}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
         </View>
       ) : null}
       <View style={styles.liveRow}>
@@ -700,6 +736,15 @@ const styles = StyleSheet.create({
   pausedBanner: { backgroundColor: "#fff5e8", borderRadius: 12, borderWidth: 1, borderColor: "#f0d2aa", padding: 12 },
   pausedTitle: { color: colors.orange, fontSize: 12, fontWeight: "900", letterSpacing: 1.2 },
   pausedText: { color: colors.ink, fontSize: 13, marginTop: 3 },
+  pausedSectionLabel: { color: colors.muted, fontSize: 10, fontWeight: "900", letterSpacing: 1.1, marginTop: 12 },
+  pausedRoster: { gap: 8, marginTop: 7 },
+  pausedPlayerRow: { backgroundColor: colors.card, borderRadius: 10, borderWidth: 1, borderColor: colors.line, padding: 10 },
+  pausedPlayerHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  pausedPlayerName: { color: colors.ink, fontSize: 13, fontWeight: "800", flex: 1 },
+  pausedPlayerBadge: { backgroundColor: "#fff0ee", color: colors.red, borderRadius: 6, overflow: "hidden", paddingHorizontal: 7, paddingVertical: 4, fontSize: 9, fontWeight: "900", letterSpacing: 0.6 },
+  pausedPlayerBadgeReady: { backgroundColor: "#e3f2e8", color: colors.green },
+  pausedPlayerGps: { color: colors.ink, fontSize: 12, fontWeight: "700", marginTop: 5 },
+  pausedPlayerHealth: { color: colors.muted, fontSize: 11, marginTop: 2 },
   trappedBadge: { backgroundColor: colors.red, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 6 },
   trappedText: { color: "#fff", fontSize: 12, fontWeight: "900", letterSpacing: 1 },
   actionRow: { flexDirection: "row", gap: 10 },
