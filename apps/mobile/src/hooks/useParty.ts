@@ -3,7 +3,12 @@ import { AppState } from "react-native";
 import type { GameCommand, RoomSnapshot, SessionResponse } from "@hide-and-seek/protocol";
 import { ApiRequestError, createParty, fetchSnapshot, joinParty, sendCommand, socketUrl } from "../api";
 import { GAME_API_URL } from "../config";
-import { refreshLobbyLocation, startMatchTracking, stopMatchTracking } from "../location/tracking";
+import {
+  refreshLobbyLocation,
+  startMatchTracking,
+  stopMatchBackgroundTracking,
+  stopMatchTracking,
+} from "../location/tracking";
 import {
   clearSession as clearStoredSession,
   randomId,
@@ -240,7 +245,7 @@ export function useParty() {
       } else if (latestSnapshot.current?.phase === "lobby"
         && latestSnapshot.current.players.find((player) => player.id === latestSnapshot.current?.selfId)?.status === "active"
         && !latestSnapshot.current.players.find((player) => player.id === latestSnapshot.current?.selfId)?.gpsReady) {
-        void stopMatchTracking().then(async () => {
+        void stopMatchBackgroundTracking().then(async () => {
           if (!isCurrent() || latestSnapshot.current?.phase !== "lobby") return;
           const result = await refreshLobbyLocation(session);
           if (!isCurrent()) return;
@@ -280,7 +285,7 @@ export function useParty() {
         if (!cancelled && mounted.current && activeSession.current === session) setStatus(result.message);
       });
     } else if (snapshot.phase === "lobby" && selfStatus === "active" && !selfGpsReady) {
-      void stopMatchTracking().then(async () => {
+      void stopMatchBackgroundTracking().then(async () => {
         if (cancelled || !mounted.current || activeSession.current !== session || latestSnapshot.current?.phase !== "lobby") return;
         const result = await refreshLobbyLocation(session);
         if (cancelled || !mounted.current || activeSession.current !== session) return;

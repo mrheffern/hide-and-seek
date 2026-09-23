@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   servicesEnabled: vi.fn(),
+  getForegroundPermission: vi.fn(),
   foregroundPermission: vi.fn(),
   backgroundPermission: vi.fn(),
   startUpdates: vi.fn(),
@@ -19,6 +20,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("expo-location", () => ({
   hasServicesEnabledAsync: mocks.servicesEnabled,
+  getForegroundPermissionsAsync: mocks.getForegroundPermission,
   requestForegroundPermissionsAsync: mocks.foregroundPermission,
   requestBackgroundPermissionsAsync: mocks.backgroundPermission,
   startLocationUpdatesAsync: mocks.startUpdates,
@@ -49,7 +51,12 @@ vi.mock("../diagnostics", () => ({
 vi.mock("../api", () => ({ uploadLocation: mocks.uploadLocation }));
 vi.mock("../deviceStatus", () => ({ readDeviceStatus: mocks.deviceStatus }));
 
-import { refreshLobbyLocation, startMatchTracking, stopMatchTracking } from "./tracking";
+import {
+  refreshLobbyLocation,
+  startMatchTracking,
+  stopMatchBackgroundTracking,
+  stopMatchTracking,
+} from "./tracking";
 
 const session = {
   apiUrl: "https://game.example",
@@ -62,6 +69,7 @@ const session = {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.servicesEnabled.mockResolvedValue(true);
+  mocks.getForegroundPermission.mockResolvedValue({ status: "undetermined" });
   mocks.foregroundPermission.mockResolvedValue({ status: "granted" });
   mocks.backgroundPermission.mockResolvedValue({ status: "granted" });
   mocks.updatesStarted.mockResolvedValue(false);
@@ -97,6 +105,12 @@ describe("locked-phone location tracking", () => {
       message: "Precise foreground location permission is required.",
     });
     expect(mocks.backgroundPermission).not.toHaveBeenCalled();
+  });
+
+  it("does not reopen Android's permission activity when foreground location is already granted", async () => {
+    mocks.getForegroundPermission.mockResolvedValue({ status: "granted" });
+    await expect(startMatchTracking()).resolves.toMatchObject({ ready: true });
+    expect(mocks.foregroundPermission).not.toHaveBeenCalled();
   });
 
   it("requires background permission for locked-phone play", async () => {
@@ -174,6 +188,21 @@ describe("locked-phone location tracking", () => {
     await vi.waitFor(() => expect(mocks.watchPosition).toHaveBeenCalledOnce());
     await stopMatchTracking();
     await expect(pending).resolves.toEqual({ ready: false, message: "Lobby GPS verification stopped." });
+    expect(mocks.removeWatcher).toHaveBeenCalledOnce();
+  });
+
+  it("keeps an unfinished lobby watch alive while only the match background service stops", async () => {
+    let onLocation!: (location: { timestamp: number; coords: { latitude: number; longitude: number; accuracy: number } }) => void;
+    mocks.watchPosition.mockImplementation(async (_options, callback) => {
+      onLocation = callback;
+      return { remove: mocks.removeWatcher };
+    });
+    const pending = refreshLobbyLocation(session);
+    await vi.waitFor(() => expect(mocks.watchPosition).toHaveBeenCalledOnce());
+    await stopMatchBackgroundTracking();
+    expect(mocks.removeWatcher).not.toHaveBeenCalled();
+    onLocation({ timestamp: Date.now(), coords: { latitude: 34, longitude: -118, accuracy: 4 } });
+    await expect(pending).resolves.toMatchObject({ ready: true });
     expect(mocks.removeWatcher).toHaveBeenCalledOnce();
   });
 

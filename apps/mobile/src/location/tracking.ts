@@ -58,7 +58,11 @@ async function startTracking(revision: number): Promise<TrackingReadiness> {
       recordDiagnostic({ level: "warn", category: "location", name: "tracking_not_ready", payload: { reason: "services_disabled" } });
       return { ready: false, message: "Turn on device location services." };
     }
-    const foreground = await Location.requestForegroundPermissionsAsync();
+    const existingForeground = await Location.getForegroundPermissionsAsync();
+    if (cancelled()) return superseded;
+    const foreground = existingForeground.status === "granted"
+      ? existingForeground
+      : await Location.requestForegroundPermissionsAsync();
     if (cancelled()) return superseded;
     if (foreground.status !== "granted") {
       recordDiagnostic({ level: "warn", category: "permission", name: "foreground_location_denied", payload: { status: foreground.status } });
@@ -144,7 +148,11 @@ export function refreshLobbyLocation(session: StoredSession): Promise<LobbyLocat
         finish({ ready: false, message: "Turn on device location services." });
         return;
       }
-      const foreground = await Location.requestForegroundPermissionsAsync();
+      const existingForeground = await Location.getForegroundPermissionsAsync();
+      if (!isCurrent()) return;
+      const foreground = existingForeground.status === "granted"
+        ? existingForeground
+        : await Location.requestForegroundPermissionsAsync();
       if (foreground.status !== "granted") {
         finish({ ready: false, message: "Precise foreground location permission is required." });
         return;
@@ -196,8 +204,8 @@ export function refreshLobbyLocation(session: StoredSession): Promise<LobbyLocat
   return promise;
 }
 
-export function stopMatchTracking(): Promise<void> {
-  activeLobbyRefresh?.cancel();
+/** Stop the active-match background service without interrupting lobby GPS verification. */
+export function stopMatchBackgroundTracking(): Promise<void> {
   ++trackingRevision;
   return serializeTracking(async () => {
     recordDiagnostic({ category: "location", name: "tracking_stop_requested" });
@@ -212,4 +220,10 @@ export function stopMatchTracking(): Promise<void> {
       resetLocationNotificationState();
     }
   });
+}
+
+/** Stop every location source when leaving a party or when location is no longer needed. */
+export function stopMatchTracking(): Promise<void> {
+  activeLobbyRefresh?.cancel();
+  return stopMatchBackgroundTracking();
 }
