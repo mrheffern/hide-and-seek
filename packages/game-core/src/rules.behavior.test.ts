@@ -323,12 +323,31 @@ describe("role visibility", () => {
     const game = setup();
     configureAndStart(game);
     expect(game.command("host", { type: "place_trap" }).ok).toBe(true);
-    expect(snapshotForPlayer(game.state, "host", game.now()).traps).toHaveLength(1);
+    expect(snapshotForPlayer(game.state, "host", game.now()).traps).toEqual([
+      expect.objectContaining({ ownedBySelf: true, radiusMeters: 6.096 }),
+    ]);
     expect(snapshotForPlayer(game.state, "seeker", game.now()).traps).toHaveLength(0);
 
     game.location("seeker", point(0));
     expect(snapshotForPlayer(game.state, "host", game.now()).traps).toHaveLength(0);
-    expect(snapshotForPlayer(game.state, "seeker", game.now()).traps[0]?.triggered).toBe(true);
+    expect(snapshotForPlayer(game.state, "seeker", game.now()).traps[0]).toMatchObject({
+      triggered: true,
+      ownedBySelf: false,
+    });
+  });
+
+  it("shows trap placement only to hiders", () => {
+    const game = setup();
+    configureAndStart(game);
+    expect(game.command("host", { type: "place_trap" }).ok).toBe(true);
+
+    expect(snapshotForPlayer(game.state, "host", game.now()).events.some(
+      (event) => event.type === "trap_placed",
+    )).toBe(true);
+    expect(snapshotForPlayer(game.state, "seeker", game.now()).events.some(
+      (event) => event.type === "trap_placed",
+    )).toBe(false);
+    expect(game.state.events.some((event) => event.type === "trap_placed")).toBe(true);
   });
 
   it("does not reveal remaining hiders' trap locations to an eliminated hider", () => {
@@ -403,6 +422,20 @@ describe("radar behavior", () => {
 });
 
 describe("trap behavior", () => {
+  it("uses a twenty-foot trigger radius", () => {
+    const inside = setup();
+    configureAndStart(inside);
+    inside.command("host", { type: "place_trap" });
+    inside.location("seeker", point(6));
+    expect(inside.state.immobilized).toBeDefined();
+
+    const outside = setup();
+    configureAndStart(outside);
+    outside.command("host", { type: "place_trap" });
+    outside.location("seeker", point(6.3));
+    expect(outside.state.immobilized).toBeUndefined();
+  });
+
   it("does not trigger a trap from a delayed GPS sample", () => {
     const game = setup();
     configureAndStart(game);

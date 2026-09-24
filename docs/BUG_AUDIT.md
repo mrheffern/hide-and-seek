@@ -33,6 +33,6 @@ The audit covered the mobile client, background location task, shared protocol, 
 
 ## Remaining field risks
 
-- The 20-foot tag and 10-foot trap radii still need physical accuracy testing around buildings and trees.
+- The 20-foot tag and trap radii still need physical accuracy testing around buildings and trees.
 - Android manufacturer battery restrictions and iOS locked-screen behavior need the documented multi-device field test.
 - Public beta operation still needs room expiration and request rate limiting before sharing the service broadly.

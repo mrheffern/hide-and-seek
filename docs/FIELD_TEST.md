@@ -16,7 +16,7 @@ Run a 45-minute outdoor route containing open sky, building edges, tree cover, s
 
 During the network-loss segment, leave and reopen the app without tapping Leave. Confirm that it retains the party, refreshes to the current phase, and changes its connection badge from Reconnecting to Live. Manually pause and resume once as the host.
 
-Repeat approaches to marked physical points at 3, 6, 10, and 20 meters. Cross the requested 3.048-meter trap radius at walking and running speed. Record the physical route independently so GPS outcomes can be compared to observable encounters.
+Repeat approaches to marked physical points at 3, 6, 10, and 20 meters. Cross the requested 6.096-meter trap radius at walking and running speed. Record the physical route independently so GPS outcomes can be compared to observable encounters.
 
 ## Capture
 

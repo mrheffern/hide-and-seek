@@ -117,7 +117,7 @@ The 3-second rule is intentionally demanding for the requested tiny circles. If 
 
 ### GPS feasibility
 
-The requested tag distance is **20 feet = 6.096 meters**. A **20-foot-diameter trap has a radius of only 10 feet = 3.048 meters**. GPS.gov describes typical smartphone accuracy under open sky around a 4.9-meter radius, with worse performance around obstructions. Both players' errors contribute to a tag, and a trap's placement fix also has error. These dimensions cannot be promised as reliable physical measurements on a campus. [GPS.gov accuracy](https://www.gps.gov/gps-accuracy)
+The requested tag distance and trap radius are both **20 feet = 6.096 meters**. GPS.gov describes typical smartphone accuracy under open sky around a 4.9-meter radius, with worse performance around obstructions. Both players' errors contribute to a tag, and a trap's placement fix also has error. These dimensions cannot be promised as reliable physical measurements on a campus. [GPS.gov accuracy](https://www.gps.gov/gps-accuracy)
 
 Keep both requested dimensions available as experimental settings. Field-test wider alternatives, such as a 40-foot tag distance and 60-foot trap diameter, before choosing the normal beta preset. These are proposed test values, not proven thresholds. Use reported accuracy to classify outcomes as sufficiently supported, outside, or uncertain; it is an estimate rather than a strict guaranteed error bound. An uncertain observation must not silently eliminate or trap a player.
 

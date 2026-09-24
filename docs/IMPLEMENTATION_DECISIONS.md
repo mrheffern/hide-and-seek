@@ -258,7 +258,7 @@ Use these server-owned beta defaults:
 | Rule | Default |
 | --- | ---: |
 | Tag radius | 6.096 m / 20 ft |
-| Trap radius | 3.048 m / 10 ft, producing a 20 ft diameter |
+| Trap radius | 6.096 m / 20 ft |
 | Trap dwell | 15 seconds of observed dwell |
 | Trap arm delay | 5 seconds |
 | Trap lifetime | 5 minutes |

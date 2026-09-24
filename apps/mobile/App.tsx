@@ -1,5 +1,5 @@
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Keyboard,
@@ -16,7 +16,7 @@ import {
   Vibration,
 } from "react-native";
 import MapView, { Circle, Marker, Polygon, Polyline, type MapPressEvent } from "react-native-maps";
-import type { Coordinate, GameCommand, RoomSnapshot } from "@hide-and-seek/protocol";
+import type { Coordinate, GameCommand, RoomSnapshot, VisibleTrap } from "@hide-and-seek/protocol";
 import { useParty } from "./src/hooks/useParty";
 import { lobbyStartReadiness } from "./src/game/lobbyReadiness";
 import { appendBoundaryPoint, coordinateFromMapPress } from "./src/map/boundaryDraft";
@@ -41,6 +41,7 @@ const colors = {
   orange: "#ee7d32",
   red: "#be3b32",
   blue: "#2774ae",
+  trap: "#6b2d84",
   line: "#d8e0d8",
 };
 
@@ -73,6 +74,115 @@ function ActionButton({
     >
       <Text style={[styles.buttonText, tone === "plain" && styles.buttonTextPlain]}>{label}</Text>
     </Pressable>
+  );
+}
+
+function TrapActionButton({
+  armDurationMs,
+  busy,
+  chargesRemaining,
+  command,
+  now,
+  trap,
+}: {
+  armDurationMs: number;
+  busy: boolean;
+  chargesRemaining: number;
+  command: (command: GameCommand) => void;
+  now: number;
+  trap?: VisibleTrap;
+}) {
+  const serverOffsetMs = useRef(now - Date.now());
+  const [displayNow, setDisplayNow] = useState(now);
+  useEffect(() => {
+    serverOffsetMs.current = now - Date.now();
+    setDisplayNow(now);
+  }, [now]);
+  useEffect(() => {
+    if (!trap || trap.armedAt <= Date.now() + serverOffsetMs.current) return;
+    const timer = setInterval(() => {
+      const next = Date.now() + serverOffsetMs.current;
+      setDisplayNow(next);
+      if (next >= trap.armedAt) clearInterval(timer);
+    }, 100);
+    return () => clearInterval(timer);
+  }, [trap?.armedAt, trap?.id]);
+
+  const arming = Boolean(trap && displayNow < trap.armedAt);
+  const progress = trap
+    ? Math.max(0, Math.min(1, (displayNow - (trap.armedAt - armDurationMs)) / Math.max(1, armDurationMs)))
+    : 0;
+  const remainingSeconds = trap ? Math.max(0, Math.ceil((trap.armedAt - displayNow) / 100) / 10) : 0;
+  const canPlace = !busy && !trap && chargesRemaining > 0;
+  const label = busy && !trap
+    ? "Placing bear trap…"
+    : arming
+      ? `Arming bear trap · ${remainingSeconds.toFixed(1)}s`
+      : trap
+        ? `Bear trap armed · ${Math.round(trap.radiusMeters * 3.28084)} ft`
+        : chargesRemaining > 0
+          ? "Lay bear trap"
+          : "Bear trap used";
+
+  return (
+    <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !canPlace }}
+      accessibilityValue={arming ? { min: 0, max: 100, now: Math.round(progress * 100) } : undefined}
+      disabled={!canPlace}
+      onPress={() => command({ type: "place_trap" })}
+      style={({ pressed }) => [
+        styles.trapActionButton,
+        !canPlace && !trap && styles.buttonDisabled,
+        pressed && canPlace && styles.buttonPressed,
+      ]}
+    >
+      <View
+        pointerEvents="none"
+        style={[styles.trapButtonProgress, { width: `${Math.round(progress * 100)}%` }]}
+      />
+      <Text style={styles.trapButtonText}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function TrapMapOverlay({ trap, now }: { trap: VisibleTrap; now: number }) {
+  const arming = !trap.triggered && now < trap.armedAt;
+  const color = trap.triggered ? colors.red : colors.trap;
+  const label = trap.triggered
+    ? "TRAPPED"
+    : arming
+      ? `ARMING ${Math.max(1, Math.ceil((trap.armedAt - now) / 1_000))}s`
+      : "BEAR TRAP";
+  return (
+    <Fragment key={trap.id}>
+      <Circle
+        center={trap}
+        fillColor={trap.triggered ? "rgba(190,59,50,0.20)" : "rgba(107,45,132,0.18)"}
+        radius={trap.radiusMeters}
+        strokeColor={color}
+        strokeWidth={5}
+      />
+      <Circle
+        center={trap}
+        fillColor="rgba(0,0,0,0)"
+        radius={Math.max(1, trap.radiusMeters * 0.7)}
+        strokeColor={trap.triggered ? "rgba(190,59,50,0.75)" : "rgba(107,45,132,0.75)"}
+        strokeWidth={2}
+      />
+      <Marker
+        anchor={{ x: 0.5, y: 0.5 }}
+        coordinate={trap}
+        tracksViewChanges={arming}
+        zIndex={5}
+      >
+        <View style={[styles.trapMapBadge, trap.triggered && styles.trapMapBadgeTriggered]}>
+          <Text style={styles.trapMapGlyph}>{trap.triggered ? "!" : "×"}</Text>
+          <Text style={styles.trapMapLabel}>{label}</Text>
+        </View>
+      </Marker>
+    </Fragment>
   );
 }
 
@@ -296,16 +406,7 @@ function GameMap({
           />
         ) : null;
       })}
-      {snapshot.traps.map((trap) => (
-        <Circle
-          center={trap}
-          fillColor={trap.triggered ? "rgba(190,59,50,0.24)" : "rgba(238,125,50,0.20)"}
-          key={trap.id}
-          radius={trap.radiusMeters}
-          strokeColor={trap.triggered ? colors.red : colors.orange}
-          strokeWidth={2}
-        />
-      ))}
+      {snapshot.traps.map((trap) => <TrapMapOverlay key={trap.id} now={now} trap={trap} />)}
     </MapView>
   );
 }
@@ -322,6 +423,7 @@ function PartyPanel({
   now: number;
 }) {
   const self = snapshot.players.find((player) => player.id === snapshot.selfId)!;
+  const ownTrap = snapshot.traps.find((trap) => trap.ownedBySelf);
   const isHost = snapshot.hostId === snapshot.selfId;
   if (snapshot.phase === "lobby") {
     const startReadiness = lobbyStartReadiness(snapshot);
@@ -419,7 +521,14 @@ function PartyPanel({
               <ActionButton disabled={busy || Boolean(snapshot.immobilized)} label="Radar" onPress={() => command({ type: "use_radar" })} tone="plain" />
             </>
           ) : (
-            <ActionButton disabled={busy} label="Lay bear trap" onPress={() => command({ type: "place_trap" })} tone="orange" />
+            <TrapActionButton
+              armDurationMs={snapshot.rules.trapArmMs}
+              busy={busy}
+              chargesRemaining={self.trapChargesRemaining ?? 0}
+              command={command}
+              now={now}
+              trap={ownTrap}
+            />
           )}
         </View>
       ) : null}
@@ -692,6 +801,9 @@ const styles = StyleSheet.create({
   buttonPressed: { transform: [{ scale: 0.985 }], opacity: 0.9 },
   buttonText: { color: "#fff", fontWeight: "800", fontSize: 15 },
   buttonTextPlain: { color: colors.greenDark },
+  trapActionButton: { minHeight: 48, borderRadius: 13, borderWidth: 2, borderColor: colors.orange, backgroundColor: "#fff3e9", justifyContent: "center", alignItems: "center", paddingHorizontal: 16, flexGrow: 1, overflow: "hidden" },
+  trapButtonProgress: { position: "absolute", left: 0, top: 0, bottom: 0, backgroundColor: "rgba(238,125,50,0.42)" },
+  trapButtonText: { color: colors.ink, fontWeight: "900", fontSize: 15 },
   orRow: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 4 },
   orLine: { height: 1, flex: 1, backgroundColor: colors.line },
   orText: { color: colors.muted, fontSize: 12 },
@@ -712,6 +824,10 @@ const styles = StyleSheet.create({
   leaveButton: { minWidth: 64, minHeight: 48, alignItems: "center", justifyContent: "center" },
   mapFrame: { height: "49%", minHeight: 310, position: "relative" },
   map: { flex: 1 },
+  trapMapBadge: { minWidth: 72, minHeight: 38, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 3, borderColor: "#fff", backgroundColor: colors.trap, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 6 },
+  trapMapBadgeTriggered: { backgroundColor: colors.red },
+  trapMapGlyph: { color: "#fff", fontSize: 18, fontWeight: "900", lineHeight: 18 },
+  trapMapLabel: { color: "#fff", fontSize: 8, fontWeight: "900", letterSpacing: 0.7 },
   joinCodeCard: { position: "absolute", top: 12, left: 60, right: 60, zIndex: 2, elevation: 4, alignItems: "center", backgroundColor: "rgba(255,255,255,0.96)", borderRadius: 16, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 18, paddingVertical: 9 },
   joinCodeLabel: { color: colors.green, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 },
   joinCodeValue: { color: colors.ink, fontSize: 25, fontWeight: "900", letterSpacing: 5, marginTop: 1 },

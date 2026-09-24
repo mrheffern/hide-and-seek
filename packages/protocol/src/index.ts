@@ -159,6 +159,8 @@ export interface VisiblePlayer {
   gpsAccuracyMeters?: number;
   deviceStatus?: AcceptedDeviceStatus;
   location?: AcceptedPositionFix;
+  /** Only included for the player viewing their own snapshot. */
+  trapChargesRemaining?: number;
 }
 
 export interface VisibleTrap extends Coordinate {
@@ -167,6 +169,8 @@ export interface VisibleTrap extends Coordinate {
   armedAt: number;
   expiresAt: number;
   triggered: boolean;
+  /** Identifies the viewer's own trap without exposing its owner to the seeker. */
+  ownedBySelf: boolean;
 }
 
 export interface RoomSnapshot {

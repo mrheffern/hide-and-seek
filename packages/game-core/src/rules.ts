@@ -19,7 +19,7 @@ import { distanceMeters, distanceToPolygonBoundaryMeters, pointInPolygon, valida
 
 export const DEFAULT_RULES: GameRules = {
   tagRadiusMeters: 6.096,
-  trapRadiusMeters: 3.048,
+  trapRadiusMeters: 6.096,
   trapDwellMs: 15_000,
   trapArmMs: 5_000,
   trapLifetimeMs: 5 * 60_000,
@@ -866,6 +866,7 @@ export function snapshotForPlayer(state: RoomState, viewerId: string, now: numbe
       gpsAccuracyMeters: player.latestFix?.accuracyMeters,
       deviceStatus: player.deviceStatus,
       location: canSeeLocation ? player.latestFix : undefined,
+      trapChargesRemaining: player.id === viewerId ? player.trapChargesRemaining : undefined,
     };
   });
   const traps = state.traps
@@ -881,6 +882,7 @@ export function snapshotForPlayer(state: RoomState, viewerId: string, now: numbe
       armedAt: trap.armedAt,
       expiresAt: trap.expiresAt,
       triggered: Boolean(trap.consumedAt),
+      ownedBySelf: trap.ownerId === viewerId,
     }));
   const viewerFix = viewer.latestFix;
   const running = state.phase === "hiding" || state.phase === "active" || state.phase === "paused";
@@ -920,6 +922,8 @@ export function snapshotForPlayer(state: RoomState, viewerId: string, now: numbe
     boundaryGraceRemainingMs: viewer.outsideBoundary
       ? Math.max(0, state.rules.boundaryGraceMs - viewer.boundaryOutsideMs)
       : undefined,
-    events: state.events.slice(-12),
+    events: state.events
+      .filter((event) => viewer.role !== "seeker" || event.type !== "trap_placed")
+      .slice(-12),
   };
 }
