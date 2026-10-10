@@ -36,3 +36,23 @@ The audit covered the mobile client, background location task, shared protocol, 
 - The 20-foot tag and trap radii still need physical accuracy testing around buildings and trees.
 - Android manufacturer battery restrictions and iOS locked-screen behavior need the documented multi-device field test.
 - Public beta operation still needs room expiration and request rate limiting before sharing the service broadly.
+
+## Android release follow-up — 2026-10-10
+
+### Fixed in v0.1.1
+
+- The first Android release defaulted to `http://10.0.2.2:8787`. That address is the Android emulator's host alias, not a server reachable from a physical phone, and release builds also rejected its cleartext HTTP traffic with `UnknownServiceException`. Version `0.1.1` defaults to the deployed Cloudflare Worker's HTTPS URL instead.
+- The physical-device APK is now built with a Google Maps SDK for Android key restricted to the application package and the APK signing certificate. The key value remains outside tracked source.
+- The app version advanced to `0.1.1` with Android version code `2`, allowing an in-place update from the earlier test APK when the signing certificate matches.
+
+### Verification
+
+- All 184 repository tests pass, and all TypeScript workspaces pass type checking.
+- The deployed Worker health endpoint and a production create-party request succeed.
+- The release APK contains the production HTTPS endpoint and does not contain the emulator URL.
+- APK ZIP integrity, zip alignment, and Android v2 signature verification pass.
+- The APK downloaded from the public GitHub release has SHA-256 `47d25ebf23e3552ca6c3c4dce076010596c340e73ac87a6fb118e86fa89bf60c`, matching the locally verified artifact.
+
+### Still required
+
+- Complete the [gameplay readiness checklist](./GAMEPLAY_TEST_CHECKLIST.md) and [multi-phone physical-device field test](./FIELD_TEST.md). The automated server smoke flow cannot substitute for sustained outdoor GPS readiness, locked-screen tracking, or real tag and trap observations.

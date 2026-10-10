@@ -34,6 +34,7 @@ Use this file for decisions that affect product behavior, architecture, privacy,
 | [DEC-015](#dec-015--live-player-health-and-reconnect-behavior) | Live player health and reconnect behavior | Accepted | 2026-09-20 |
 | [DEC-016](#dec-016--reconstructable-beta-diagnostics) | Reconstructable beta diagnostics | Accepted | 2026-09-20 |
 | [DEC-017](#dec-017--cost-bounded-location-lifecycle) | Cost-bounded location lifecycle | Accepted | 2026-09-20 |
+| [DEC-018](#dec-018--production-android-release-configuration) | Production Android release configuration | Accepted | 2026-10-10 |
 
 ## DEC-001 — Shared cross-platform TypeScript workspace
 
@@ -361,6 +362,8 @@ Native map keys are embedded in application builds, but unrestricted keys can be
 
 Keep environment-specific values in uncommitted local environment files. Never record key values in this log. Restrict the Google Maps Android key to the Maps SDK, application package `com.hideandseek.outofsight`, and the correct signing-certificate fingerprint. Use a separate production key and restrictions before store distribution.
 
+For the `v0.1.1` internal Android prerelease, the embedded key is restricted to the Maps SDK for Android, `com.hideandseek.outofsight`, and the certificate that signs the published APK. The key value is supplied only to the native build environment and is not tracked in the repository.
+
 ### Consequences
 
 Each signing configuration requires matching key restrictions. Key rotation must be followed by a native rebuild.
@@ -489,6 +492,37 @@ An idle lobby produces only occasional readiness traffic. A seven-player 45-minu
 - `apps/mobile/src/diagnostics/index.ts`
 - `packages/game-core/src/rules.ts`
 - `services/game-server/src/room.ts`
+
+## DEC-018 — Production Android release configuration
+
+**Status:** Accepted
+
+**Date:** 2026-10-10
+
+### Context
+
+The first Android APK inherited the local emulator endpoint `http://10.0.2.2:8787`. A physical phone cannot use that emulator-only host alias, and the release build rejected its cleartext HTTP traffic. A distributable APK also needs repeatable versioning, a restricted native Maps key, and a verifiable release artifact.
+
+### Decision
+
+- Make the deployed Cloudflare Worker's HTTPS URL the mobile app's default endpoint in committed configuration.
+- Permit `EXPO_PUBLIC_GAME_API_URL` to override the default for intentional local builds, but never use an emulator or LAN address as a release default.
+- Supply `GOOGLE_MAPS_API_KEY` only at native build time. Restrict it to the Maps SDK for Android, the application package, and every certificate authorized to sign that build; never commit the key value.
+- Advance both the application version and Android version code for every published APK.
+- Publish internal APKs as GitHub prereleases and verify the public asset's checksum, ZIP integrity, alignment, and Android signature.
+
+### Consequences
+
+Physical-device builds work without a development computer or cleartext network exception. Local development must opt into its endpoint explicitly. The Worker URL is public application configuration, not a credential. The Maps key remains extractable from an APK by design, so its API, package, and signing-certificate restrictions are the security boundary. Changing the signer or key requires updating the Google Cloud restrictions and producing another native build.
+
+### Implementation
+
+- `apps/mobile/app.json`
+- `apps/mobile/app.config.ts`
+- `apps/mobile/src/config.ts`
+- `apps/mobile/.env.example`
+- `package.json`
+- `apps/mobile/package.json`
 
 ## New decision template
 

@@ -22,6 +22,18 @@ The JSON file contains `clientAtMs` (phone clock), `serverAtMs` (receipt time), 
 
 Only the host token can read diagnostics. Players can upload their own client events but cannot read the combined party trace.
 
+### Use during gameplay testing
+
+Treat one finished-match export as the evidence bundle for each checklist run:
+
+1. Before exporting, bring every phone online and foreground the app until it shows **Live**. Wait at least 30 seconds so each phone's periodic uploader can send queued client events.
+2. On the game-over screen, the host taps **Export match diagnostics** before returning to the lobby. The app first flushes the host's local queue, captures a fixed server sequence boundary, downloads the combined match timeline in pages, writes a formatted JSON file, and opens the system share sheet.
+3. Save the raw JSON privately. Its `localPendingEventCount` reports pending events on the exporting host only; confirm all expected players and time ranges appear in the analysis rather than assuming other phones uploaded everything.
+4. Run `npm run analyze:field-test -- path/to/export.json` for a coordinate-free text report. Add `--json` for structured summary and decision evidence; that output also omits raw coordinates.
+5. Compare the report with the observer's notes from [GAMEPLAY_TEST_CHECKLIST.md](./GAMEPLAY_TEST_CHECKLIST.md). The export records what devices and the server observed, but cannot establish physical ground truth, notification visibility, or whether a real-world tag should have occurred.
+
+The analyzer reports per-player receipt intervals, sample age and accuracy distributions, locked-screen movement evidence, long gaps, network switches, battery change, reconnect duration, tag attempts, trap placement/trigger/release, boundary eliminations, and the nearest available GPS evidence for authoritative decisions. A **provisional-pass** means the data target passed; it does not replace the manual gameplay checks.
+
 ## Crash service setup
 
 The app works without Sentry and still preserves JavaScript error events in its local/server diagnostic stream. To collect native process crashes and reports when the app cannot upload its own queue:
@@ -50,3 +62,16 @@ The current beta uses count-based retention. Before inviting testers outside the
 Start with a client `interaction.command_button_pressed`, follow its command ID through `network.request_started`, then find the server `command.command_processed`. Compare its `before`, `result`, `after`, and `gameEvents`, and finally locate the client's `network.request_succeeded` and next `state.snapshot_received`. A missing segment identifies whether the failure occurred before transport, at authorization/validation, inside the game rules, during response delivery, or while applying live state.
 
 For GPS issues, start with each server `location.location_processed` event. At 30-second intervals, correlate it with `location.native_location_received` and `location.location_accepted` using `sessionId:sequence` to inspect the extra OS motion fields. Failures are always retained even between samples.
+
+## Android endpoint and map troubleshooting
+
+An error containing the following text identifies an obsolete physical-device build or an endpoint override that was accidentally baked into it:
+
+```text
+fetch failed: java.net.UnknownServiceException:
+CLEARTEXT communication to 10.0.2.2 not permitted by network security policy
+```
+
+`10.0.2.2` is an Android emulator alias. It does not refer to the development computer from a physical phone, and production Android builds reject cleartext HTTP by default. Install `v0.1.1` or newer and confirm the app version is `0.1.1` with version code `2`. That release defaults to the production HTTPS Worker. If the error remains in a newly built APK, remove the `EXPO_PUBLIC_GAME_API_URL` override or replace it with the intended reachable HTTPS endpoint, then rebuild the native app.
+
+If network requests work but the map remains blank, verify that the Google Cloud project has billing enabled, the Maps SDK for Android is enabled, and the key is restricted to `com.hideandseek.outofsight` plus the SHA-1 fingerprint of the certificate that actually signed the installed APK. A different signing certificate requires another allowed Android application restriction and a new native build if the key changes. Never add the key value to diagnostics or tracked documentation.

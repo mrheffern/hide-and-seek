@@ -1,14 +1,39 @@
 # Locked-phone location field test
 
-This is the release gate for the automatic tag and trap mechanics. Run it on the intended campus before tuning powers or polishing the UI.
+This is the location-quality portion of the release gate for the automatic tag and trap mechanics. Run it on the intended campus before tuning powers or polishing the UI, alongside the full [gameplay readiness checklist](./GAMEPLAY_TEST_CHECKLIST.md).
 
 ## Setup
 
-1. Install Node 24, install dependencies with `npm install`, and copy `apps/mobile/.env.example` to `apps/mobile/.env`.
-2. Put the computer and test phones on the same network. Set `EXPO_PUBLIC_GAME_API_URL` to `http://<computer-lan-ip>:8787`; permit inbound TCP 8787 in the local firewall for the test.
-3. Configure a Google Maps Android SDK key in `GOOGLE_MAPS_API_KEY`, restricted to `com.hideandseek.outofsight` and the development signing certificate.
-4. Run `npm run dev:server`, then create native development builds. Background location must not be judged in Expo Go.
-5. Use at least one iPhone, one Pixel, and one Samsung-class Android device when available.
+### v0.1.1 production-path test
+
+1. Use at least two physical Android phones. Include a Pixel and a Samsung-class device when available.
+2. Install [`out-of-sight-v0.1.1.apk`](https://github.com/mrheffern/hide-and-seek/releases/download/v0.1.1/out-of-sight-v0.1.1.apk) on each phone. Confirm the installed version is `0.1.1`; updating `v0.1.0` in place is expected to work.
+3. Open the app and grant precise location, background location, and notification permissions when requested. Do not use Expo Go for background-location testing.
+4. Confirm satellite map tiles load and the app does not report a request to `10.0.2.2`. The production APK must use the deployed HTTPS Worker without a development computer on the network.
+5. Record each phone's model, Android version, battery restrictions, network, and starting battery level in the test notes.
+
+### Local-build alternative
+
+1. Install Node.js 22.13 or newer, install dependencies with `npm install`, and copy `apps/mobile/.env.example` to `apps/mobile/.env`.
+2. Run `npm run dev:server`. For an emulator, the example `http://10.0.2.2:8787` endpoint is appropriate. For a physical phone, replace it with a reachable endpoint configured for Android networking or an HTTPS tunnel; `10.0.2.2` never identifies the development computer from a physical phone.
+3. Configure `GOOGLE_MAPS_API_KEY`, restricted to the Maps SDK for Android, `com.hideandseek.outofsight`, and the exact development signing certificate.
+4. Create native development builds. Background location must not be judged in Expo Go.
+5. Add an iPhone build to the device set when iOS support is ready for validation.
+
+## Two-phone match checklist
+
+Run this smoke checklist once before beginning the longer locked-phone route. Complete the more detailed scenarios in [GAMEPLAY_TEST_CHECKLIST.md](./GAMEPLAY_TEST_CHECKLIST.md) before making the release decision:
+
+- On phone A, enter a player name and create a party. On phone B, enter a different name and join with the six-character code.
+- Confirm both phones show the same party and player list, with connection and GPS-readiness states that update on both devices.
+- Wait outdoors until both phones reach the required sustained GPS readiness. A single fix is intentionally insufficient.
+- As host, draw and save a valid field, choose the seeker, and review the match settings. Confirm phone B receives every setup change.
+- Start the match and verify the hide countdown and active phase agree on both phones.
+- Lock each phone for at least five minutes while walking. Confirm Android keeps the location foreground-service notification visible and the server continues receiving timely fixes.
+- Unlock and verify current state, locations permitted for each role, timers, and connection health recover without rejoining.
+- Briefly disable networking on one phone, restore it, and confirm the connection changes from Reconnecting to Live without losing the party.
+- Exercise one observable tag or trap interaction, then finish the round and confirm both phones reach the game-over state.
+- Export match diagnostics before returning to the lobby and attach the JSON to the test notes.
 
 ## Route
 
