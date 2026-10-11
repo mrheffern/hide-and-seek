@@ -1,6 +1,6 @@
 # Hide and Seek
 
-Cross-platform GPS hide-and-seek beta. Start with [docs/PRODUCT_VISION.md](./docs/PRODUCT_VISION.md) for the intended sport, audience, college-launch strategy, and decision principles. See [ARCHITECTURE.md](./ARCHITECTURE.md) for the system design and cost model, and [docs/IMPLEMENTATION_DECISIONS.md](./docs/IMPLEMENTATION_DECISIONS.md) for the living record of implementation choices and their rationale.
+Cross-platform GPS hide-and-seek beta. See [NEXT_STEPS.md](./NEXT_STEPS.md) for the active, ordered plan and [docs/PRODUCT_VISION.md](./docs/PRODUCT_VISION.md) for the intended sport, audience, college-launch strategy, and decision principles. See [ARCHITECTURE.md](./ARCHITECTURE.md) for the system design and cost model, and [docs/IMPLEMENTATION_DECISIONS.md](./docs/IMPLEMENTATION_DECISIONS.md) for the living record of implementation choices and their rationale.
 
 ## Workspace
 
