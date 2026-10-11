@@ -35,6 +35,7 @@ Use this file for decisions that affect product behavior, architecture, privacy,
 | [DEC-016](#dec-016--reconstructable-beta-diagnostics) | Reconstructable beta diagnostics | Accepted | 2026-09-20 |
 | [DEC-017](#dec-017--cost-bounded-location-lifecycle) | Cost-bounded location lifecycle | Accepted | 2026-09-20 |
 | [DEC-018](#dec-018--production-android-release-configuration) | Production Android release configuration | Accepted | 2026-10-10 |
+| [DEC-019](#dec-019--authoritative-spoken-gameplay-cues) | Authoritative spoken gameplay cues | Accepted | 2026-10-11 |
 
 ## DEC-001 — Shared cross-platform TypeScript workspace
 
@@ -523,6 +524,41 @@ Physical-device builds work without a development computer or cleartext network 
 - `apps/mobile/.env.example`
 - `package.json`
 - `apps/mobile/package.json`
+
+## DEC-019 — Authoritative spoken gameplay cues
+
+**Status:** Accepted
+
+**Date:** 2026-10-11
+
+### Context
+
+Outdoor players may have their screens locked or their attention away from the display when a tag or trap changes the game. A notification beep alone is ambiguous. The iOS silent switch and Android silent/vibrate mode do not mute normal media playback, but neither platform lets this game guarantee loudness or force the user's system volume.
+
+### Decision
+
+- Play bundled spoken media only after receiving an authoritative server event, never from a client-side distance guess.
+- Play **Tagged** on the successful tagger's and tagged player's phones. Do not play it for uninvolved players.
+- Play **Caught in bear trap** only on the trapped seeker's phone. Keep trap placement silent.
+- Configure playback for silent mode and background operation, route through the normal media output rather than the earpiece, and duck other audio while the cue plays.
+- Do not request microphone permission and do not read or change system volume.
+- Deduplicate event IDs across foreground and background snapshot handlers. Ignore events more than ten seconds old so a restore does not replay historic cues.
+- Keep tagged/trapped local notifications visible but disable their default notification sound so it does not overlap the spoken clip.
+- Record playback start or failure with the authoritative event ID. Audio failure must never change the gameplay result.
+
+### Consequences
+
+The clips behave like video or music audio and can play when the phone's alert switch is silent, but media volume, Bluetooth/headphone routing, operating-system suspension, and device policy can still prevent a player from hearing them. A new native build is required, and foreground plus locked-screen playback must pass on physical Android and iOS devices before audio can be considered reliable. Audio readiness and volume warnings are not yet implemented.
+
+### Implementation
+
+- `apps/mobile/assets/audio/`
+- `apps/mobile/src/audio/gameplayAudio.ts`
+- `apps/mobile/src/audio/gameplaySoundEvents.ts`
+- `apps/mobile/src/audio/gameplaySoundEvents.test.ts`
+- `apps/mobile/src/hooks/useParty.ts`
+- `apps/mobile/src/location/backgroundLocation.ts`
+- `apps/mobile/app.json`
 
 ## New decision template
 

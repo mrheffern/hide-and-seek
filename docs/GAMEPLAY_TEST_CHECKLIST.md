@@ -16,6 +16,7 @@ Do not move on while any must-pass item is failing or untested:
 - [ ] Near buildings and trees, weak GPS causes a safe refusal or pause rather than a false game outcome.
 - [ ] Every test phone keeps uploading usable locations for 30–60 minutes while locked and carried normally.
 - [ ] A network loss and app reopen recover the same party and authoritative match state without rejoining.
+- [ ] Spoken tag and trap cues reach exactly the involved phones in foreground and locked-screen tests without duplicate or stale playback.
 - [ ] Every completed match produces a diagnostics export with all players represented and no unexplained event gaps.
 - [ ] Every blocker found during testing is fixed and the failed scenario is rerun on the affected devices.
 
@@ -82,7 +83,7 @@ Run the measured-distance mechanics in open sky first. Repeat them near a buildi
 
 ## A. Install, permissions, maps, and service
 
-- [ ] **A1 — Install/update:** Install `v0.1.1` on every phone. Updating `v0.1.0` in place preserves the app and launches successfully.
+- [ ] **A1 — Install/update:** Install `v0.1.2` on every phone. Updating `v0.1.1` in place preserves the app and launches successfully.
 - [ ] **A2 — Production endpoint:** Create a party over cellular with no development computer present. No error mentions `10.0.2.2` or cleartext HTTP.
 - [ ] **A3 — Map:** Satellite tiles load, the map centers near the phone after a fix, and pan/zoom remain responsive.
 - [ ] **A4 — Permissions:** Grant precise foreground location, background location, and notifications. Denying each permission produces a useful recovery message rather than a crash.
@@ -232,6 +233,20 @@ At the end of each match:
 8. Attach the analyzer report, physical notes, screenshots/video, and issue links to the test record. Retain the raw export only as long as the beta team needs it.
 
 The JSON can be provided directly to a developer—or uploaded in this workspace—for deeper review. See [DIAGNOSTICS.md](./DIAGNOSTICS.md) for its contents, privacy limits, and event-tracing method.
+
+## M. Spoken gameplay audio
+
+These checks cover the bundled media cues in `v0.1.2`. The app does not yet monitor media volume or output routing, so confirm those settings manually before each run.
+
+- [ ] **M1 — Silent placement:** Placing a bear trap makes no sound on any phone.
+- [ ] **M2 — Tag participants:** A successful tag plays **Tagged** once on the seeker's phone and once on the tagged hider's phone.
+- [ ] **M3 — Tag privacy:** An uninvolved hider does not hear the tag cue.
+- [ ] **M4 — Trap target:** Triggering an armed trap plays **Caught in bear trap** once on the trapped seeker's phone and not on the trap owner's or other players' phones.
+- [ ] **M5 — Foreground and locked:** Repeat one tag and one trap with the affected phone foregrounded, then in a separate round with it locked. The spoken cue is audible in both states.
+- [ ] **M6 — Silent modes:** On Android, repeat with silent/vibrate mode enabled. On iOS when an iOS build is available, repeat with the silent switch enabled. The media cue still plays when media volume is audible.
+- [ ] **M7 — Output route:** Test low media volume and a connected Bluetooth/headphone route. Confirm the cue follows the active media route; record this as an environmental limitation, not a game override.
+- [ ] **M8 — No replay:** Reconnect or reopen immediately after an event and confirm repeated snapshots do not replay the cue. Reopening later must not play an old event.
+- [ ] **M9 — Evidence:** The diagnostics export contains `audio/gameplay_sound_started`, or `audio/gameplay_sound_failed` if playback failed, correlated to the authoritative event ID on each intended phone.
 
 ## Failure handling
 

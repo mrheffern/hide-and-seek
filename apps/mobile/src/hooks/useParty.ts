@@ -27,6 +27,8 @@ import {
 import { exportDiagnostics as exportDiagnosticsFile } from "../diagnostics/export";
 import { leavePartySession } from "./leaveParty";
 import { acceptsSnapshot, shouldTrackPlayer } from "./partyState";
+import { consumeGameplaySoundCues } from "../audio/gameplaySoundEvents";
+import { playGameplaySound } from "../audio/gameplayAudio";
 
 function toStoredSession(response: SessionResponse): StoredSession {
   return {
@@ -62,6 +64,9 @@ export function useParty() {
       playerName: self?.name,
       matchId: next.matchId,
     });
+    for (const cue of consumeGameplaySoundCues(next)) {
+      void playGameplaySound(cue.kind, cue.eventId);
+    }
     recordDiagnostic({
       level: "debug",
       category: "state",

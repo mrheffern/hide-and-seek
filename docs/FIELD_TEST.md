@@ -4,10 +4,10 @@ This is the location-quality portion of the release gate for the automatic tag a
 
 ## Setup
 
-### v0.1.1 production-path test
+### v0.1.2 production-path test
 
 1. Use at least two physical Android phones. Include a Pixel and a Samsung-class device when available.
-2. Install [`out-of-sight-v0.1.1.apk`](https://github.com/mrheffern/hide-and-seek/releases/download/v0.1.1/out-of-sight-v0.1.1.apk) on each phone. Confirm the installed version is `0.1.1`; updating `v0.1.0` in place is expected to work.
+2. Install [`out-of-sight-v0.1.2.apk`](https://github.com/mrheffern/hide-and-seek/releases/download/v0.1.2/out-of-sight-v0.1.2.apk) on each phone. Confirm the installed version is `0.1.2`; updating `v0.1.1` in place is expected to work.
 3. Open the app and grant precise location, background location, and notification permissions when requested. Do not use Expo Go for background-location testing.
 4. Confirm satellite map tiles load and the app does not report a request to `10.0.2.2`. The production APK must use the deployed HTTPS Worker without a development computer on the network.
 5. Record each phone's model, Android version, battery restrictions, network, and starting battery level in the test notes.
@@ -32,7 +32,9 @@ Run this smoke checklist once before beginning the longer locked-phone route. Co
 - Lock each phone for at least five minutes while walking. Confirm Android keeps the location foreground-service notification visible and the server continues receiving timely fixes.
 - Unlock and verify current state, locations permitted for each role, timers, and connection health recover without rejoining.
 - Briefly disable networking on one phone, restore it, and confirm the connection changes from Reconnecting to Live without losing the party.
-- Exercise one observable tag or trap interaction, then finish the round and confirm both phones reach the game-over state.
+- Place a bear trap and confirm placement is silent. Trigger it and confirm only the locked or foregrounded seeker hears **Caught in bear trap**.
+- Complete a tag and confirm both the seeker and tagged hider hear **Tagged** once. Repeat across runs with the affected phone locked and foregrounded.
+- Finish the round and confirm both phones reach the game-over state.
 - Export match diagnostics before returning to the lobby and attach the JSON to the test notes.
 
 ## Route

@@ -11,11 +11,11 @@ Cross-platform GPS hide-and-seek beta. See [ARCHITECTURE.md](./ARCHITECTURE.md) 
 
 ## Android beta release
 
-The current physical-device build is the [`v0.1.1` GitHub prerelease](https://github.com/mrheffern/hide-and-seek/releases/tag/v0.1.1). Download [`out-of-sight-v0.1.1.apk`](https://github.com/mrheffern/hide-and-seek/releases/download/v0.1.1/out-of-sight-v0.1.1.apk) directly on an Android phone, allow that browser or file manager to install unknown apps when Android asks, and open **Out of Sight**. Version `0.1.1` has Android version code `2`, so it can update the earlier `v0.1.0` test build when both builds use the same signing certificate.
+The current physical-device build is the [`v0.1.2` GitHub prerelease](https://github.com/mrheffern/hide-and-seek/releases/tag/v0.1.2). Download [`out-of-sight-v0.1.2.apk`](https://github.com/mrheffern/hide-and-seek/releases/download/v0.1.2/out-of-sight-v0.1.2.apk) directly on an Android phone, allow that browser or file manager to install unknown apps when Android asks, and open **Out of Sight**. Version `0.1.2` has Android version code `3`, so it can update the earlier `v0.1.1` test build because both builds use the same signing certificate.
 
 This APK defaults to the production HTTPS Cloudflare Worker at `https://hide-and-seek-game-server.hide-and-seek-game-server.workers.dev`. Its Google Maps key is embedded at native build time and is restricted to the Maps SDK for Android, the `com.hideandseek.outofsight` package, and the release's signing certificate. The key value is intentionally absent from the repository.
 
-`v0.1.1` is an internal prerelease rather than a Play Store production-signed build. Automated tests, APK integrity, alignment, and signature checks pass, but a complete match on multiple physical phones remains the release gate. Use the [gameplay readiness checklist](./docs/GAMEPLAY_TEST_CHECKLIST.md) and [locked-phone field test](./docs/FIELD_TEST.md) before treating the beta as generally ready to play.
+`v0.1.2` adds authoritative spoken **Tagged** cues for both tag participants and **Caught in bear trap** for the trapped seeker; trap placement remains silent. It is an internal prerelease rather than a Play Store production-signed build. Automated tests, APK integrity, alignment, and signature checks pass, but a complete match on multiple physical phones—including locked-screen audio—remains the release gate. Use the [gameplay readiness checklist](./docs/GAMEPLAY_TEST_CHECKLIST.md) and [locked-phone field test](./docs/FIELD_TEST.md) before treating the beta as generally ready to play.
 
 ## Local development
 

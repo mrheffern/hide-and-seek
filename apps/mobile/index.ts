@@ -7,9 +7,11 @@ import App from './App';
 import { DiagnosticsErrorBoundary } from './src/diagnostics/DiagnosticsErrorBoundary';
 import { initializeDiagnostics, installGlobalErrorHandler } from './src/diagnostics';
 import { wrapWithSentry } from './src/diagnostics/sentry';
+import { initializeGameplayAudio } from './src/audio/gameplayAudio';
 
 installGlobalErrorHandler();
 void initializeDiagnostics();
+void initializeGameplayAudio();
 
 function Root() {
   return React.createElement(DiagnosticsErrorBoundary, null, React.createElement(App));

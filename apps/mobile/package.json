@@ -1,6 +1,6 @@
 {
   "name": "@hide-and-seek/mobile",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "main": "index.ts",
   "dependencies": {
     "@hide-and-seek/game-core": "0.1.0",
@@ -8,6 +8,7 @@
     "@sentry/react-native": "~7.11.0",
     "expo": "~57.0.24",
     "expo-application": "~57.0.3",
+    "expo-audio": "~57.0.5",
     "expo-battery": "~57.0.3",
     "expo-dev-client": "~57.0.19",
     "expo-device": "~57.0.2",

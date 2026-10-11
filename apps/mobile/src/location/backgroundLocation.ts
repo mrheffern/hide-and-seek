@@ -5,6 +5,8 @@ import { uploadLocation } from "../api";
 import { flushDiagnostics, getDiagnosticContext, recordDiagnostic, recordDiagnosticError, setDiagnosticContext } from "../diagnostics";
 import { readDeviceStatus, resetDeviceStatusCache } from "../deviceStatus";
 import { readSession } from "../session";
+import { consumeGameplaySoundCues } from "../audio/gameplaySoundEvents";
+import { playGameplaySound } from "../audio/gameplayAudio";
 
 export const LOCATION_TASK_NAME = "hide-and-seek-active-match-location";
 
@@ -112,6 +114,9 @@ if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
         },
       });
       const self = result.snapshot.players.find((player) => player.id === result.snapshot.selfId);
+      for (const cue of consumeGameplaySoundCues(result.snapshot)) {
+        await playGameplaySound(cue.kind, cue.eventId);
+      }
       // Stopping location must not depend on notifications being permitted or successfully scheduled.
       if (self?.status === "eliminated" || self?.status === "departed" || result.snapshot.phase === "finished") {
         await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
@@ -123,7 +128,7 @@ if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
           content: {
             title: "You hit a bear trap",
             body: "Stop and remain inside the circle for 15 observed seconds.",
-            sound: true,
+            sound: false,
           },
           trigger: null,
         });
@@ -131,7 +136,7 @@ if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
       if (self?.status === "eliminated" && !eliminationNotified) {
         eliminationNotified = true;
         await Notifications.scheduleNotificationAsync({
-          content: { title: "You were tagged", body: "Your location sharing has stopped.", sound: true },
+          content: { title: "You were tagged", body: "Your location sharing has stopped.", sound: false },
           trigger: null,
         });
       }

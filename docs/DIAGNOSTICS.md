@@ -8,6 +8,7 @@ The beta records a reconstructable timeline for each party. The client writes ev
 - Party creation, join, leave, player identity, room, match, app session, location session, request, and command correlation IDs
 - Every non-GPS HTTP request outcome, every GPS transport/rejection failure, and WebSocket connect, message, error, close, retry, and fallback refresh
 - Every UI command, boundary drawing action, command payload, rejection, and authoritative state transition
+- Spoken gameplay audio start and failure, including the cue type and authoritative game-event correlation ID
 - Every authoritative GPS submission and result on the server; sampled native motion detail and battery/network health every 30 seconds; every rejection, boundary assessment, tag/trap effect, and related game event
 - Server clock transitions, snapshots, socket presence, duplicate commands, schema rejections, export requests, and rule results
 - JavaScript/React crashes locally and in Sentry when a DSN is configured; native crashes and symbolicated production stacks require Sentry configuration and source-map upload
@@ -72,6 +73,6 @@ fetch failed: java.net.UnknownServiceException:
 CLEARTEXT communication to 10.0.2.2 not permitted by network security policy
 ```
 
-`10.0.2.2` is an Android emulator alias. It does not refer to the development computer from a physical phone, and production Android builds reject cleartext HTTP by default. Install `v0.1.1` or newer and confirm the app version is `0.1.1` with version code `2`. That release defaults to the production HTTPS Worker. If the error remains in a newly built APK, remove the `EXPO_PUBLIC_GAME_API_URL` override or replace it with the intended reachable HTTPS endpoint, then rebuild the native app.
+`10.0.2.2` is an Android emulator alias. It does not refer to the development computer from a physical phone, and production Android builds reject cleartext HTTP by default. Install `v0.1.2` or newer and confirm the app version is `0.1.2` with version code `3`. That release defaults to the production HTTPS Worker. If the error remains in a newly built APK, remove the `EXPO_PUBLIC_GAME_API_URL` override or replace it with the intended reachable HTTPS endpoint, then rebuild the native app.
 
 If network requests work but the map remains blank, verify that the Google Cloud project has billing enabled, the Maps SDK for Android is enabled, and the key is restricted to `com.hideandseek.outofsight` plus the SHA-1 fingerprint of the certificate that actually signed the installed APK. A different signing certificate requires another allowed Android application restriction and a new native build if the key changes. Never add the key value to diagnostics or tracked documentation.
