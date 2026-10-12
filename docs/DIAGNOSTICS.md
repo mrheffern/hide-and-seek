@@ -17,7 +17,7 @@ Authorization headers, player tokens, API keys, passwords, and fields with equiv
 
 ## Export a test
 
-The host can tap **Export match diagnostics** in the lobby or after a match. On the game-over screen, export before returning to the lobby because returning clears the current match ID. The app first uploads its offline queue, downloads the server timeline in sequence order, creates a formatted JSON file, and opens the phone's share sheet.
+The host can tap **Export match diagnostics** in the lobby or after a match. On the game-over screen, export before returning to the lobby because returning clears the current match ID. The app first uploads its offline queue, downloads the server timeline in sequence order, and creates a formatted JSON file. On Android it opens the system folder picker at Downloads so the tester can save a durable copy; cancelling that picker falls back to the share sheet. On iOS it opens the native sheet, where the tester can choose **Save to Files**.
 
 The JSON file contains `clientAtMs` (phone clock), `serverAtMs` (receipt time), `sequence` (authoritative ordering), `source`, identity and correlation fields, plus the event payload. Use `sequence` to establish server order and compare the two timestamps to spot clock skew or network delay.
 
@@ -28,8 +28,8 @@ Only the host token can read diagnostics. Players can upload their own client ev
 Treat one finished-match export as the evidence bundle for each checklist run:
 
 1. Before exporting, bring every phone online and foreground the app until it shows **Live**. Wait at least 30 seconds so each phone's periodic uploader can send queued client events.
-2. On the game-over screen, the host taps **Export match diagnostics** before returning to the lobby. The app first flushes the host's local queue, captures a fixed server sequence boundary, downloads the combined match timeline in pages, writes a formatted JSON file, and opens the system share sheet.
-3. Save the raw JSON privately. Its `localPendingEventCount` reports pending events on the exporting host only; confirm all expected players and time ranges appear in the analysis rather than assuming other phones uploaded everything.
+2. On the game-over screen, the host taps **Export match diagnostics** before returning to the lobby. The app first flushes the host's local queue, captures a fixed server sequence boundary, downloads the combined match timeline in pages, and writes a formatted JSON file. On Android, choose a private test folder such as Downloads in the system folder picker. On iOS, choose **Save to Files** in the system sheet.
+3. Confirm the named JSON file still exists after closing the app. Keep it private. Its `localPendingEventCount` reports pending events on the exporting host only; confirm all expected players and time ranges appear in the analysis rather than assuming other phones uploaded everything.
 4. Run `npm run analyze:field-test -- path/to/export.json` for a coordinate-free text report. Add `--json` for structured summary and decision evidence; that output also omits raw coordinates.
 5. Compare the report with the observer's notes from [GAMEPLAY_TEST_CHECKLIST.md](./GAMEPLAY_TEST_CHECKLIST.md). The export records what devices and the server observed, but cannot establish physical ground truth, notification visibility, or whether a real-world tag should have occurred.
 
@@ -73,6 +73,6 @@ fetch failed: java.net.UnknownServiceException:
 CLEARTEXT communication to 10.0.2.2 not permitted by network security policy
 ```
 
-`10.0.2.2` is an Android emulator alias. It does not refer to the development computer from a physical phone, and production Android builds reject cleartext HTTP by default. Install `v0.1.2` or newer and confirm the app version is `0.1.2` with version code `3`. That release defaults to the production HTTPS Worker. If the error remains in a newly built APK, remove the `EXPO_PUBLIC_GAME_API_URL` override or replace it with the intended reachable HTTPS endpoint, then rebuild the native app.
+`10.0.2.2` is an Android emulator alias. It does not refer to the development computer from a physical phone, and production Android builds reject cleartext HTTP by default. Install `v0.1.3` or newer and confirm the app version is `0.1.3` with version code `4`. That release defaults to the production HTTPS Worker and discards saved sessions tied to a different configured server. If the error remains in a newly built APK, remove the `EXPO_PUBLIC_GAME_API_URL` override or replace it with the intended reachable HTTPS endpoint, then rebuild the native app.
 
 If network requests work but the map remains blank, verify that the Google Cloud project has billing enabled, the Maps SDK for Android is enabled, and the key is restricted to `com.hideandseek.outofsight` plus the SHA-1 fingerprint of the certificate that actually signed the installed APK. A different signing certificate requires another allowed Android application restriction and a new native build if the key changes. Never add the key value to diagnostics or tracked documentation.

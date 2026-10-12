@@ -8,7 +8,7 @@ Keep this document short and current. Detailed procedures belong in the linked t
 
 **Prove the physical core loop on real phones.**
 
-The current build is the [`v0.1.2` Android prerelease](https://github.com/mrheffern/hide-and-seek/releases/tag/v0.1.2). It has the production Worker and Maps configuration, authoritative GPS-based rules, diagnostics export, and spoken tag and trap cues. Automated tests and APK verification pass. Real-world multi-phone gameplay remains the gate.
+The current build is the [`v0.1.3` Android prerelease](https://github.com/mrheffern/hide-and-seek/releases/tag/v0.1.3). It has the production Worker and Maps configuration, authoritative GPS-based rules, durable diagnostics export, and spoken tag and trap cues. Automated tests and APK verification pass. Real-world multi-phone gameplay remains the gate.
 
 Do not begin league-system development until this milestone passes or the field evidence clearly establishes what must change.
 
@@ -16,12 +16,22 @@ Do not begin league-system development until this milestone passes or the field 
 
 Complete these steps in order.
 
+### Pending field-test change set
+
+Do not treat the current build as having passed the gate. Preserve the exports and screenshots for these findings, then fix and rerun their exact scenarios together:
+
+- [x] Recover from a saved party that cannot reconnect instead of leaving the phone indefinitely on **Connecting to party**.
+- [x] Remove radar player markers and their accuracy circles together when the three-second reveal ends; verify no stale native map overlay remains.
+- [x] Keep the bear-trap marker's arming label and the button progress synchronized through the five-second arm transition on Android.
+- [x] Change the server-authoritative hiding countdown from 60 seconds to **10 seconds**, and update its automated tests, player-facing copy, checklist, and recorded beta preset at the same time.
+- [x] Make **Export match diagnostics** save a durable JSON file on the phone instead of leaving the only copy in temporary cache. On Android, provide a system-backed save flow suitable for Downloads; on iOS, provide the equivalent Save to Files flow. Keep sharing available, show the resulting filename/location or a clear cancellation message, and test that the file remains available after the app closes.
+
 ### 1. Prepare the test run
 
 - [ ] Recruit at least two testers and obtain at least two Android models; include a Pixel and Samsung-class phone when available.
 - [ ] Plan one three-player run in addition to the two-player role-swap runs.
 - [ ] Choose a safe field with open sky, a building edge, tree cover, marked distances, and a boundary that can be crossed deliberately.
-- [ ] Install `v0.1.2` on every phone and record the phone model, Android version, battery restrictions, network, and starting battery.
+- [ ] Install `v0.1.3` on every phone and record the phone model, Android version, battery restrictions, network, and starting battery.
 - [ ] Assign one person to record physical observations and timestamps instead of relying on what the app reports.
 - [ ] Prepare a private location for the exported diagnostics because they contain player names and precise movement history.
 
@@ -176,4 +186,5 @@ After each test session, update the detailed checklist and evidence first. Chang
 
 ## Completed milestones
 
+- **2026-10-12:** Built and verified Android prerelease `v0.1.3` with reconnect recovery, radar/trap rendering corrections, a 10-second hiding countdown, and durable diagnostic file saving. Exact-scenario physical retesting remains open.
 - **2026-10-11:** Published Android prerelease `v0.1.2` with production Worker and Maps configuration, diagnostics export, and authoritative spoken tag/trap cues. Automated tests and APK integrity checks passed; physical gameplay validation remains open.

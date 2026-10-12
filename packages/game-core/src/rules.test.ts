@@ -5,6 +5,7 @@ import {
   addPlayer,
   applyCommand,
   createRoomState,
+  DEFAULT_RULES,
   snapshotForPlayer,
   type RuleContext,
 } from "./rules";
@@ -71,6 +72,12 @@ function startGame(game: ReturnType<typeof setup>) {
   game.tick(2);
   game.location("host", point(0), 2);
 }
+
+describe("beta rule preset", () => {
+  it("gives players a ten-second hiding countdown", () => {
+    expect(DEFAULT_RULES.hidingDurationMs).toBe(10_000);
+  });
+});
 
 describe("authoritative visibility", () => {
   it("does not send hider locations to the seeker outside radar", () => {

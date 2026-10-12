@@ -267,7 +267,7 @@ Use these server-owned beta defaults:
 | Traps per hider | 1 |
 | Radar visibility | 3 seconds |
 | Radar cooldown | 5 minutes |
-| Hiding countdown | 60 seconds |
+| Hiding countdown | 10 seconds |
 | Round duration | 30 minutes |
 | Boundary grace | 15 seconds |
 | Tag-attempt cooldown | 2 seconds |
@@ -447,7 +447,7 @@ Field failures can involve the phone operating system, GPS quality, radios, back
 
 Record an append-only, correlated timeline on both sides of the connection. Each phone first stores client events in SQLite and uploads them opportunistically. Each room stores those events beside authoritative server events in its Durable Object SQLite database. Include precise timestamps, player identity, every authoritative GPS submission, sampled native sensor detail, device health, UI intent, request failures and representative outcomes, state summaries, and rule results. Give only the host access to paginated JSON export. Redact credentials by field name. Use Sentry as the optional native/last-chance crash channel when its DSN and build secrets are configured.
 
-Keep gameplay independent from diagnostics: a storage, upload, export, or Sentry failure may be reported, but cannot reject a game action. Preserve match IDs through the game-over screen so one match can be exported without adjacent lobby traffic.
+Keep gameplay independent from diagnostics: a storage, upload, export, or Sentry failure may be reported, but cannot reject a game action. Preserve match IDs through the game-over screen so one match can be exported without adjacent lobby traffic. Save Android exports through the system Storage Access Framework so the tester can choose Downloads or another durable folder. Use the native Save to Files/share flow on iOS. A temporary cache file alone is not a completed export.
 
 ### Consequences
 

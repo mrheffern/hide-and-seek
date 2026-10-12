@@ -52,6 +52,21 @@ export function useParty() {
   const latestSnapshot = useRef<RoomSnapshot | null>(null);
   const actionInFlight = useRef(false);
 
+  const clearLocalParty = useCallback(async (message: string) => {
+    activeSession.current = null;
+    latestSnapshot.current = null;
+    actionInFlight.current = false;
+    await stopMatchTracking();
+    await clearStoredSession().catch((error) => recordDiagnosticError("lifecycle", "session_clear_failed", error));
+    if (!mounted.current) return;
+    setSession(null);
+    setSnapshot(null);
+    setConnectionState("disconnected");
+    setStatus(message);
+    setBusy(false);
+    clearDiagnosticContext();
+  }, []);
+
   const applySnapshot = useCallback((next: RoomSnapshot, expectedSession: StoredSession) => {
     if (!mounted.current || activeSession.current !== expectedSession
       || !acceptsSnapshot(latestSnapshot.current, next, expectedSession)) return;
@@ -112,6 +127,15 @@ export function useParty() {
         setBusy(false);
         return;
       }
+      if (stored.apiUrl.replace(/\/+$/, "") !== GAME_API_URL.replace(/\/+$/, "")) {
+        recordDiagnostic({
+          category: "lifecycle",
+          name: "session_server_changed",
+          payload: { previousApiUrl: stored.apiUrl, currentApiUrl: GAME_API_URL },
+        });
+        await clearLocalParty("The app server changed. Create or join the party again.");
+        return;
+      }
       setDiagnosticContext({ apiUrl: stored.apiUrl, roomCode: stored.roomCode, playerId: stored.playerId });
       activeSession.current = stored;
       setSession(stored);
@@ -124,16 +148,7 @@ export function useParty() {
         if (cancelled || !mounted.current || activeSession.current !== stored) return;
         recordDiagnosticError("lifecycle", "session_restore_failed", error);
         if (error instanceof ApiRequestError && (error.status === 401 || error.status === 404)) {
-          activeSession.current = null;
-          latestSnapshot.current = null;
-          await stopMatchTracking();
-          await clearStoredSession().catch((storageError) => recordDiagnosticError("lifecycle", "session_clear_failed", storageError));
-          if (!cancelled && mounted.current) {
-            setSession(null);
-            setSnapshot(null);
-            clearDiagnosticContext();
-            setStatus("Previous party expired.");
-          }
+          await clearLocalParty("Previous party expired.");
         } else if (mounted.current) {
           setStatus("Reconnecting to your previous party…");
         }
@@ -145,7 +160,7 @@ export function useParty() {
       cancelled = true;
       mounted.current = false;
     };
-  }, [applySnapshot]);
+  }, [applySnapshot, clearLocalParty]);
 
   useEffect(() => {
     if (!session) return;
@@ -169,17 +184,8 @@ export function useParty() {
         recordDiagnosticError("realtime", "fallback_refresh_failed", error);
         if (error instanceof ApiRequestError && (error.status === 401 || error.status === 404)) {
           closed = true;
-          activeSession.current = null;
-          latestSnapshot.current = null;
           socket?.close();
-          await stopMatchTracking();
-          await clearStoredSession().catch((storageError) => recordDiagnosticError("lifecycle", "session_clear_failed", storageError));
-          if (!mounted.current) return;
-          setSession(null);
-          setSnapshot(null);
-          setConnectionState("disconnected");
-          clearDiagnosticContext();
-          setStatus("This party is no longer available.");
+          await clearLocalParty("This party is no longer available.");
         }
       } finally {
         refreshing = false;
@@ -275,7 +281,7 @@ export function useParty() {
       appState.remove();
       socket?.close();
     };
-  }, [applySnapshot, session]);
+  }, [applySnapshot, clearLocalParty, session]);
 
   const selfStatus = snapshot?.players.find((player) => player.id === snapshot.selfId)?.status;
   const selfGpsReady = snapshot?.players.find((player) => player.id === snapshot.selfId)?.gpsReady;
@@ -385,13 +391,53 @@ export function useParty() {
     clearDiagnosticContext();
   }, [session]);
 
+  const retryConnection = useCallback(async () => {
+    if (!session || snapshot || activeSession.current !== session || actionInFlight.current) return;
+    actionInFlight.current = true;
+    setBusy(true);
+    setConnectionState("connecting");
+    setStatus("Trying to reconnect…");
+    recordDiagnostic({ category: "interaction", name: "session_retry_pressed" });
+    try {
+      const next = await fetchSnapshot(session);
+      if (!mounted.current || activeSession.current !== session) return;
+      applySnapshot(next, session);
+      setStatus("Party restored.");
+    } catch (error) {
+      if (!mounted.current || activeSession.current !== session) return;
+      recordDiagnosticError("lifecycle", "session_retry_failed", error);
+      if (error instanceof ApiRequestError && (error.status === 401 || error.status === 404)) {
+        await clearLocalParty("This party is no longer available. Create or join another party.");
+        return;
+      }
+      setConnectionState("retrying");
+      setStatus(error instanceof Error ? error.message : "Could not reconnect. Check the network and try again.");
+    } finally {
+      if (activeSession.current === session) {
+        actionInFlight.current = false;
+        if (mounted.current) setBusy(false);
+      }
+    }
+  }, [applySnapshot, clearLocalParty, session, snapshot]);
+
+  const forgetParty = useCallback(async () => {
+    if (!session || activeSession.current !== session) return;
+    recordDiagnostic({ category: "interaction", name: "saved_session_discarded" });
+    setBusy(true);
+    await clearLocalParty("Saved party removed. Create or join a party to continue.");
+  }, [clearLocalParty, session]);
+
   const exportDiagnostics = useCallback(async () => {
     if (!session || activeSession.current !== session || !snapshot || snapshot.hostId !== snapshot.selfId
       || (snapshot.phase !== "lobby" && snapshot.phase !== "finished")) return;
     setExportingDiagnostics(true);
     try {
       const result = await exportDiagnosticsFile(session, snapshot.matchId);
-      if (mounted.current && activeSession.current === session) setStatus(`Exported ${result.count} diagnostic events.`);
+      if (mounted.current && activeSession.current === session) {
+        setStatus(result.disposition === "saved"
+          ? `Saved ${result.count} diagnostic events as ${result.fileName}.`
+          : `Prepared ${result.count} diagnostic events. Use the system sheet to save or share ${result.fileName}.`);
+      }
     } catch (error) {
       recordDiagnosticError("diagnostics", "export_failed", error, { matchId: snapshot.matchId });
       if (mounted.current && activeSession.current === session) setStatus(error instanceof Error ? error.message : "Diagnostics export failed.");
@@ -400,5 +446,19 @@ export function useParty() {
     }
   }, [session, snapshot]);
 
-  return { session, snapshot, status, busy, connectionState, exportingDiagnostics, create, join, command, leave, exportDiagnostics };
+  return {
+    session,
+    snapshot,
+    status,
+    busy,
+    connectionState,
+    exportingDiagnostics,
+    create,
+    join,
+    command,
+    leave,
+    retryConnection,
+    forgetParty,
+    exportDiagnostics,
+  };
 }

@@ -25,7 +25,7 @@ export const DEFAULT_RULES: GameRules = {
   trapLifetimeMs: 5 * 60_000,
   radarDurationMs: 3_000,
   radarCooldownMs: 5 * 60_000,
-  hidingDurationMs: 60_000,
+  hidingDurationMs: 10_000,
   roundDurationMs: 30 * 60_000,
   tagAttemptCooldownMs: 2_000,
   maxFixAgeMs: 3_000,

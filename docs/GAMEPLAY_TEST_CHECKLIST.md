@@ -59,7 +59,7 @@ These expectations come from the authoritative server rules, not from phone-side
 | Trap allowance | 1 per hider per round |
 | Radar visibility | 3 seconds |
 | Radar cooldown | 5 minutes |
-| Hiding countdown | 60 seconds |
+| Hiding countdown | 10 seconds |
 | Round duration | 30 minutes |
 | Boundary warning distance | 10 meters inside the edge |
 | Boundary grace | 15 continuous observed seconds clearly outside |
@@ -83,7 +83,7 @@ Run the measured-distance mechanics in open sky first. Repeat them near a buildi
 
 ## A. Install, permissions, maps, and service
 
-- [ ] **A1 — Install/update:** Install `v0.1.2` on every phone. Updating `v0.1.1` in place preserves the app and launches successfully.
+- [ ] **A1 — Install/update:** Install `v0.1.3` on every phone. Updating `v0.1.1` or `v0.1.2` in place preserves the app and launches successfully.
 - [ ] **A2 — Production endpoint:** Create a party over cellular with no development computer present. No error mentions `10.0.2.2` or cleartext HTTP.
 - [ ] **A3 — Map:** Satellite tiles load, the map centers near the phone after a fix, and pan/zoom remain responsive.
 - [ ] **A4 — Permissions:** Grant precise foreground location, background location, and notifications. Denying each permission produces a useful recovery message rather than a crash.
@@ -124,7 +124,7 @@ For the final locked-phone route, every phone needs at least 20 estimated moving
 
 ## E. Match phases and role privacy
 
-- [ ] **E1 — Countdown:** Starting the match begins the 60-second hiding phase on every phone with synchronized timers.
+- [ ] **E1 — Countdown:** Starting the match begins the 10-second hiding phase on every phone with synchronized timers.
 - [ ] **E2 — Active transition:** The match changes to active play at the same server deadline on every phone without requiring a button press.
 - [ ] **E3 — Hider visibility:** Active hiders see themselves and other active hiders but never the seeker's coordinates.
 - [ ] **E4 — Seeker visibility:** The seeker sees no active hider coordinates except during the three-second radar window.
@@ -205,7 +205,7 @@ Two proposed balance rules in `ARCHITECTURE.md` are not currently enforced by th
 - [ ] **K1 — Seeker win:** All hiders tagged, eliminated, or departed produces a seeker win consistently on every phone.
 - [ ] **K2 — Hider win:** Let one full timed test run expire, or verify the seeker leaving a running match awards the hiders the win.
 - [ ] **K3 — Game over:** The winner, reason, and latest events agree on every phone, and active location sharing stops for finished/eliminated players.
-- [ ] **K4 — Export:** Before returning to the lobby, the host exports the finished match diagnostics and confirms the share sheet produces a JSON file.
+- [ ] **K4 — Export:** Before returning to the lobby, the host exports the finished match diagnostics, saves the JSON to Downloads on Android or Files on iOS, closes the app, and confirms the file remains available.
 - [ ] **K5 — Rematch:** Only the host can return to the lobby. The boundary remains, traps and winner clear, players become active, and GPS must be verified again.
 - [ ] **K6 — Leave cleanup:** Leaving turns off active location tracking and removes or transfers host authority as appropriate.
 
@@ -214,8 +214,8 @@ Two proposed balance rules in `ARCHITECTURE.md` are not currently enforced by th
 At the end of each match:
 
 1. Bring every phone online and open the app long enough to show **Live**. Wait at least 30 seconds so each client's periodic diagnostics upload has an opportunity to run.
-2. On the finished screen, the host taps **Export match diagnostics** before **Return to lobby**. The app flushes the host's local queue, downloads the server's match timeline, writes JSON, and opens the Android share sheet.
-3. Save the JSON to a private test folder using a filename that includes the date and scenario IDs. Do not post it publicly: it contains player names and precise movement history.
+2. On the finished screen, the host taps **Export match diagnostics** before **Return to lobby**. The app flushes the host's local queue and downloads the server's match timeline. On Android, choose a private test folder such as Downloads in the system folder picker; on iOS, choose **Save to Files** in the native sheet.
+3. Confirm the JSON remains in that folder after closing the app. Do not post it publicly: it contains player names and precise movement history.
 4. Run the coordinate-free summary:
 
    ```sh
@@ -236,7 +236,7 @@ The JSON can be provided directly to a developer—or uploaded in this workspace
 
 ## M. Spoken gameplay audio
 
-These checks cover the bundled media cues in `v0.1.2`. The app does not yet monitor media volume or output routing, so confirm those settings manually before each run.
+These checks cover the bundled media cues retained in `v0.1.3`. The app does not yet monitor media volume or output routing, so confirm those settings manually before each run.
 
 - [ ] **M1 — Silent placement:** Placing a bear trap makes no sound on any phone.
 - [ ] **M2 — Tag participants:** A successful tag plays **Tagged** once on the seeker's phone and once on the tagged hider's phone.

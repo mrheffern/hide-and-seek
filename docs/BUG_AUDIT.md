@@ -56,3 +56,15 @@ The audit covered the mobile client, background location task, shared protocol, 
 ### Still required
 
 - Complete the [gameplay readiness checklist](./GAMEPLAY_TEST_CHECKLIST.md) and [multi-phone physical-device field test](./FIELD_TEST.md). The automated server smoke flow cannot substitute for sustained outdoor GPS readiness, locked-screen tracking, or real tag and trap observations.
+
+## Physical gameplay follow-up — 2026-10-12
+
+The first outdoor two-phone run exposed several client presentation and recovery failures. The next Android build includes these corrections:
+
+- A restored session that cannot fetch its first snapshot now shows the actual failure plus **Try again** and **Forget saved party** actions instead of an indefinite spinner. Saved sessions from a different configured server are discarded safely.
+- When the seeker's three-second radar window ends, the Android native map is refreshed once so both the hidden player's marker and any cached accuracy circles are removed. The stale **Radar active** command result is also hidden after the window closes.
+- A trap marker is recreated for each arming-label transition so Android cannot retain the initial **ARMING 5s** bitmap after the server deadline. The button progress fill now spans the full control.
+- The beta hiding countdown is now 10 seconds and remains server-authoritative.
+- Android diagnostic export now prompts for a durable folder, starting at Downloads, and iOS exposes Save to Files through the native sheet. Android falls back to sharing if folder selection is cancelled.
+
+These items remain subject to exact-scenario retesting on the affected phones before the physical-core gate can pass.

@@ -174,6 +174,7 @@ function TrapMapOverlay({ trap, now }: { trap: VisibleTrap; now: number }) {
       <Marker
         anchor={{ x: 0.5, y: 0.5 }}
         coordinate={trap}
+        key={`${trap.id}-${label}`}
         tracksViewChanges={arming}
         zIndex={5}
       >
@@ -322,8 +323,21 @@ function GameMap({
   const mapRef = useRef<MapView | null>(null);
   const centeredOnPlayer = useRef(false);
   const self = snapshot.players.find((player) => player.id === snapshot.selfId);
+  const viewer = self;
   const center = self?.location ?? snapshot.players.find((player) => player.location)?.location;
   const boundary = drawing ? draft : snapshot.boundary;
+  const radarRevealActive = Boolean(
+    viewer?.role === "seeker" && snapshot.radarEndsAt && snapshot.radarEndsAt > now,
+  );
+  const visiblePlayers = snapshot.players.filter((player) => {
+    if (!player.location) return false;
+    return !(viewer?.role === "seeker"
+      && player.role === "hider"
+      && player.id !== snapshot.selfId
+      && !radarRevealActive);
+  });
+  const previousRadarReveal = useRef(radarRevealActive);
+  const [nativeOverlayEpoch, setNativeOverlayEpoch] = useState(0);
   useEffect(() => {
     if (!center || centeredOnPlayer.current) return;
     centeredOnPlayer.current = true;
@@ -337,6 +351,14 @@ function GameMap({
       400,
     );
   }, [center]);
+  useEffect(() => {
+    if (previousRadarReveal.current && !radarRevealActive) {
+      // Android can retain removed native Circle overlays. Remount the native map once
+      // when radar closes so hidden-player markers and accuracy circles are both purged.
+      setNativeOverlayEpoch((value) => value + 1);
+    }
+    previousRadarReveal.current = radarRevealActive;
+  }, [radarRevealActive]);
   return (
     <MapView
       initialRegion={{
@@ -345,6 +367,7 @@ function GameMap({
         latitudeDelta: 0.008,
         longitudeDelta: 0.008,
       }}
+      key={`game-map-${nativeOverlayEpoch}`}
       mapType="satellite"
       onPress={onMapPress}
       pitchEnabled={false}
@@ -369,43 +392,28 @@ function GameMap({
             <Marker coordinate={point} key={`draft-${index}`} pinColor={colors.green} title={`Point ${index + 1}`} />
           ))
         : null}
-      {snapshot.players.map((player) => {
-        const viewer = snapshot.players.find((candidate) => candidate.id === snapshot.selfId);
-        const radarExpired =
-          viewer?.role === "seeker" &&
-          player.role === "hider" &&
-          player.id !== snapshot.selfId &&
-          (!snapshot.radarEndsAt || snapshot.radarEndsAt <= now);
-        if (!player.location || radarExpired) return null;
+      {visiblePlayers.map((player) => {
         const color = markerColor(player.role, player.id === snapshot.selfId);
         return (
           <Circle
-            center={player.location}
+            center={player.location!}
             fillColor={player.id === snapshot.selfId ? "rgba(238,125,50,0.14)" : "rgba(39,116,174,0.12)"}
             key={`accuracy-${player.id}`}
-            radius={Math.max(1, player.location.accuracyMeters)}
+            radius={Math.max(1, player.location!.accuracyMeters)}
             strokeColor={color}
             strokeWidth={1}
           />
         );
       })}
-      {snapshot.players.map((player) => {
-        const viewer = snapshot.players.find((candidate) => candidate.id === snapshot.selfId);
-        const radarExpired =
-          viewer?.role === "seeker" &&
-          player.role === "hider" &&
-          player.id !== snapshot.selfId &&
-          (!snapshot.radarEndsAt || snapshot.radarEndsAt <= now);
-        return player.location && !radarExpired ? (
+      {visiblePlayers.map((player) => (
           <Marker
-            coordinate={player.location}
+            coordinate={player.location!}
             description={gpsStatusText(player, snapshot.serverNow, now)}
             key={player.id}
             pinColor={markerColor(player.role, player.id === snapshot.selfId)}
             title={player.id === snapshot.selfId ? `${player.name} · You` : player.name}
           />
-        ) : null;
-      })}
+      ))}
       {snapshot.traps.map((trap) => <TrapMapOverlay key={trap.id} now={now} trap={trap} />)}
     </MapView>
   );
@@ -613,6 +621,7 @@ function Game({
     if (!snapshot.radarEndsAt || snapshot.radarEndsAt <= now) return null;
     return `RADAR · ${Math.ceil((snapshot.radarEndsAt - now) / 1_000)}s`;
   }, [snapshot.radarEndsAt, now]);
+  const visibleStatus = status === "Radar active." && !radarText ? "" : status;
   return (
     <SafeAreaView style={styles.game}>
       <ExpoStatusBar style="dark" />
@@ -687,7 +696,7 @@ function Game({
             tone="plain"
           />
         ) : null}
-        {status ? <Text style={styles.connectionText}>{status}</Text> : null}
+        {visibleStatus ? <Text style={styles.connectionText}>{visibleStatus}</Text> : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -751,7 +760,27 @@ export default function App() {
     return <Welcome busy={party.busy} status={party.status} onCreate={party.create} onJoin={party.join} />;
   }
   if (!party.snapshot) {
-    return <SafeAreaView style={styles.loading}><ActivityIndicator color={colors.green} /><Text style={styles.statusText}>Connecting to party…</Text></SafeAreaView>;
+    return (
+      <SafeAreaView style={styles.loading}>
+        <ExpoStatusBar style="dark" />
+        {party.busy ? <ActivityIndicator color={colors.green} /> : null}
+        <Text style={styles.recoveryTitle}>Connecting to party</Text>
+        <Text style={styles.statusText}>{party.status || "Waiting for the party server…"}</Text>
+        <View style={styles.recoveryActions}>
+          <ActionButton
+            disabled={party.busy}
+            label="Try again"
+            onPress={() => void party.retryConnection()}
+          />
+          <ActionButton
+            disabled={party.busy}
+            label="Forget saved party"
+            onPress={() => void party.forgetParty()}
+            tone="plain"
+          />
+        </View>
+      </SafeAreaView>
+    );
   }
   if (party.snapshot.phase === "finished") {
     return (
@@ -801,15 +830,17 @@ const styles = StyleSheet.create({
   buttonPressed: { transform: [{ scale: 0.985 }], opacity: 0.9 },
   buttonText: { color: "#fff", fontWeight: "800", fontSize: 15 },
   buttonTextPlain: { color: colors.greenDark },
-  trapActionButton: { minHeight: 48, borderRadius: 13, borderWidth: 2, borderColor: colors.orange, backgroundColor: "#fff3e9", justifyContent: "center", alignItems: "center", paddingHorizontal: 16, flexGrow: 1, overflow: "hidden" },
+  trapActionButton: { minHeight: 48, borderRadius: 13, borderWidth: 2, borderColor: colors.orange, backgroundColor: "#fff3e9", justifyContent: "center", alignItems: "center", flexGrow: 1, overflow: "hidden" },
   trapButtonProgress: { position: "absolute", left: 0, top: 0, bottom: 0, backgroundColor: "rgba(238,125,50,0.42)" },
-  trapButtonText: { color: colors.ink, fontWeight: "900", fontSize: 15 },
+  trapButtonText: { color: colors.ink, fontWeight: "900", fontSize: 15, paddingHorizontal: 16, textAlign: "center" },
   orRow: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 4 },
   orLine: { height: 1, flex: 1, backgroundColor: colors.line },
   orText: { color: colors.muted, fontSize: 12 },
   statusText: { color: colors.muted, textAlign: "center", marginTop: 14 },
   privacyNote: { color: colors.muted, textAlign: "center", fontSize: 12, marginTop: 18 },
   loading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.paper, paddingTop: androidStatusBarInset },
+  recoveryTitle: { color: colors.ink, fontWeight: "900", fontSize: 24, marginTop: 16 },
+  recoveryActions: { width: "100%", maxWidth: 320, paddingHorizontal: 20, marginTop: 22, gap: 10 },
   game: { flex: 1, backgroundColor: colors.paper, paddingTop: androidStatusBarInset },
   gameHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18, paddingVertical: 12, backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.line },
   roomCode: { color: colors.green, fontSize: 11, fontWeight: "800", letterSpacing: 1.5 },
