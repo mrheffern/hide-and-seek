@@ -475,6 +475,10 @@ function PartyPanel({
   }
   const gpsBlockers = snapshot.players.filter(isGpsResumeBlocker);
   const pausedPlayers = pausedGpsStatusPlayers(snapshot.players, snapshot.selfId);
+  const hiddenMode = self.role === "hider" ? self.hiddenMode : undefined;
+  const hiddenCountdown = hiddenMode?.activatesAt === undefined
+    ? undefined
+    : Math.max(0, Math.ceil((hiddenMode.activatesAt - now) / 1_000));
   return (
     <View style={styles.panel}>
       {snapshot.phase === "paused" ? (
@@ -519,8 +523,25 @@ function PartyPanel({
         </View>
         {snapshot.immobilized ? (
           <View style={styles.trappedBadge}><Text style={styles.trappedText}>TRAPPED</Text></View>
+        ) : hiddenMode?.hidden ? (
+          <View style={styles.hiddenBadge}><Text style={styles.hiddenBadgeText}>HIDDEN</Text></View>
         ) : null}
       </View>
+      {(snapshot.phase === "hiding" || snapshot.phase === "active") && self.status === "active" ? (
+        self.role === "hider" ? (
+          <Text style={[styles.hiddenModeNotice, hiddenMode?.hidden && styles.hiddenModeNoticeActive]}>
+            {hiddenMode?.hidden
+              ? `Hidden · auto-tag blocked until sustained movement or ${snapshot.rules.hiddenModeExitDistanceMeters}m of reliable movement`
+              : hiddenCountdown !== undefined
+                ? `Hold still · Hidden Mode in ${hiddenCountdown}s`
+                : "Auto-tag active · hold still to enter Hidden Mode"}
+          </Text>
+        ) : snapshot.phase === "active" ? (
+          <Text style={styles.hiddenModeNotice}>
+            Auto-tag is active. Use TAG when you physically find a stationary hidden player.
+          </Text>
+        ) : null
+      ) : null}
       {snapshot.phase === "active" && self.status === "active" ? (
         <View style={styles.actionRow}>
           {self.role === "seeker" ? (
@@ -894,6 +915,10 @@ const styles = StyleSheet.create({
   pausedPlayerHealth: { color: colors.muted, fontSize: 11, marginTop: 2 },
   trappedBadge: { backgroundColor: colors.red, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 6 },
   trappedText: { color: "#fff", fontSize: 12, fontWeight: "900", letterSpacing: 1 },
+  hiddenBadge: { backgroundColor: colors.green, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 6 },
+  hiddenBadgeText: { color: "#fff", fontSize: 12, fontWeight: "900", letterSpacing: 1 },
+  hiddenModeNotice: { color: colors.ink, backgroundColor: "#fff5e8", borderRadius: 10, padding: 10, fontSize: 12, fontWeight: "700", textAlign: "center" },
+  hiddenModeNoticeActive: { color: colors.greenDark, backgroundColor: "#e3f2e8" },
   actionRow: { flexDirection: "row", gap: 10 },
   eventText: { color: colors.ink, fontSize: 13, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 8 },
   boundaryWarning: { color: colors.red, backgroundColor: "#fff0ee", borderRadius: 10, padding: 10, fontWeight: "800", textAlign: "center" },

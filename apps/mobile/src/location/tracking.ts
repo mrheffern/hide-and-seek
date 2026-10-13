@@ -172,6 +172,10 @@ export function refreshLobbyLocation(session: StoredSession): Promise<LobbyLocat
             latitude: location.coords.latitude,
             longitude: location.coords.longitude,
             accuracyMeters: Math.max(0, location.coords.accuracy ?? 9_999),
+            speedMetersPerSecond:
+              typeof location.coords.speed === "number" && Number.isFinite(location.coords.speed) && location.coords.speed >= 0
+                ? location.coords.speed
+                : undefined,
             sampledAtMs: location.timestamp,
             sampleAgeMs: Math.max(0, now - location.timestamp),
             sequence: lobbySequence,

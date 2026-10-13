@@ -19,6 +19,12 @@ import { distanceMeters, distanceToPolygonBoundaryMeters, pointInPolygon, valida
 
 export const DEFAULT_RULES: GameRules = {
   tagRadiusMeters: 6.096,
+  autoTagEnabled: true,
+  autoTagDwellMs: 1_000,
+  hiddenModeActivationMs: 4_000,
+  hiddenModeExitDistanceMeters: 3,
+  hiddenModeMovementSpeedMetersPerSecond: 0.8,
+  hiddenModeMovementSustainMs: 1_000,
   trapRadiusMeters: 6.096,
   trapDwellMs: 15_000,
   trapArmMs: 5_000,
@@ -38,6 +44,13 @@ export const DEFAULT_RULES: GameRules = {
 
 export const BOUNDARY_WARNING_DISTANCE_METERS = 10;
 export const LOBBY_GPS_VERIFICATION_MS = 5_000;
+
+/** Adds newly introduced defaults when a Durable Object wakes an older persisted room. */
+export function upgradeRoomState(state: RoomState): RoomState {
+  state.protocolVersion = PROTOCOL_VERSION;
+  state.rules = { ...DEFAULT_RULES, ...state.rules };
+  return state;
+}
 
 export interface RuleContext {
   now: number;
@@ -67,6 +80,20 @@ function addEvent(
   state.version += 1;
 }
 
+function clearAutomaticTagState(player: PlayerRecord): void {
+  player.autoTagProximityStartedAt = undefined;
+  player.autoTagLastObservedAt = undefined;
+}
+
+function clearHiddenMode(player: PlayerRecord): void {
+  player.hiddenMode = undefined;
+  clearAutomaticTagState(player);
+}
+
+function clearAllHiddenModes(state: RoomState): void {
+  for (const player of Object.values(state.players)) clearHiddenMode(player);
+}
+
 function clearPlayerLocation(player: PlayerRecord): void {
   player.latestFix = undefined;
   player.lobbyGpsVerificationStartedAt = undefined;
@@ -75,6 +102,7 @@ function clearPlayerLocation(player: PlayerRecord): void {
   player.outsideBoundary = false;
   player.boundaryOutsideMs = 0;
   player.boundaryLastObservedAt = undefined;
+  clearHiddenMode(player);
 }
 
 function finishMatch(
@@ -291,6 +319,7 @@ export function advanceRoomClock(state: RoomState, context: RuleContext): void {
       state.phase = "paused";
       state.pausedAt = pausedAt;
       state.phaseStartedAt = pausedAt;
+      clearAllHiddenModes(state);
       addEvent(state, { ...context, now: pausedAt }, {
         type: "match_paused",
         targetId: disconnect.player.id,
@@ -347,6 +376,7 @@ function setSeeker(
   for (const player of Object.values(state.players)) {
     player.role = player.id === playerId ? "seeker" : "hider";
     player.trapChargesRemaining = player.role === "hider" ? state.rules.trapsPerHider : 0;
+    clearHiddenMode(player);
   }
   addEvent(state, context, {
     type: "seeker_selected",
@@ -398,6 +428,7 @@ function startMatch(state: RoomState, actorId: string, context: RuleContext): Ru
     player.outsideBoundary = false;
     player.boundaryOutsideMs = 0;
     player.boundaryLastObservedAt = undefined;
+    clearHiddenMode(player);
   }
   addEvent(state, context, { type: "match_started", actorId, message: "The hiding countdown started." });
   return ok("Match started.");
@@ -413,6 +444,7 @@ function pauseMatch(state: RoomState, actorId: string, context: RuleContext): Ru
   state.phase = "paused";
   state.pausedAt = context.now;
   state.phaseStartedAt = context.now;
+  clearAllHiddenModes(state);
   addEvent(state, context, { type: "match_paused", actorId, message: "The host paused the match." });
   return ok("Match paused.");
 }
@@ -443,6 +475,7 @@ function resumeMatch(state: RoomState, actorId: string, context: RuleContext): R
   for (const player of Object.values(state.players)) {
     player.boundaryLastObservedAt = undefined;
     if (player.lastTagAttemptAt !== undefined) player.lastTagAttemptAt += shift;
+    clearHiddenMode(player);
   }
   state.phase = state.pausedFromPhase;
   state.pausedFromPhase = undefined;
@@ -500,6 +533,109 @@ function placeTrap(state: RoomState, actorId: string, context: RuleContext): Rul
   return ok("Trap placed.");
 }
 
+function startHiddenModeObservation(
+  player: PlayerRecord,
+  fix: AcceptedPositionFix,
+  context: RuleContext,
+): void {
+  player.hiddenMode = {
+    anchor: { latitude: fix.latitude, longitude: fix.longitude },
+    anchorAccuracyMeters: fix.accuracyMeters,
+    stationarySinceAt: context.now,
+    lastObservationAt: context.now,
+  };
+}
+
+function processHiddenModeObservation(
+  state: RoomState,
+  player: PlayerRecord,
+  fix: AcceptedPositionFix,
+  context: RuleContext,
+): void {
+  if (
+    player.role !== "hider" ||
+    player.status !== "active" ||
+    (state.phase !== "hiding" && state.phase !== "active")
+  ) {
+    clearHiddenMode(player);
+    return;
+  }
+  const precise = fix.accuracyMeters <= state.rules.maxCompetitiveAccuracyMeters &&
+    fixAgeMs(fix, context.now) <= state.rules.maxFixAgeMs;
+  if (!precise) {
+    clearHiddenMode(player);
+    return;
+  }
+
+  const observation = player.hiddenMode;
+  if (
+    !observation ||
+    context.now - observation.lastObservationAt > state.rules.maxObservationGapMs
+  ) {
+    clearAutomaticTagState(player);
+    startHiddenModeObservation(player, fix, context);
+    return;
+  }
+
+  const distanceFromAnchor = distanceMeters(observation.anchor, fix);
+  const accuracyAllowance = Math.min(
+    state.rules.maxCompetitiveAccuracyMeters,
+    Math.max(observation.anchorAccuracyMeters, fix.accuracyMeters),
+  );
+  const credibleDisplacement = Math.max(0, distanceFromAnchor - accuracyAllowance);
+  const displacementShowsMovement = credibleDisplacement >= state.rules.hiddenModeExitDistanceMeters;
+  const speedShowsMovement =
+    fix.speedMetersPerSecond !== undefined &&
+    fix.speedMetersPerSecond >= state.rules.hiddenModeMovementSpeedMetersPerSecond;
+  if (displacementShowsMovement || speedShowsMovement) {
+    if (!observation.hiddenAt) {
+      startHiddenModeObservation(player, fix, context);
+      return;
+    }
+    observation.movingSinceAt ??= context.now;
+    observation.lastObservationAt = context.now;
+    if (context.now - observation.movingSinceAt >= state.rules.hiddenModeMovementSustainMs) {
+      clearAutomaticTagState(player);
+      startHiddenModeObservation(player, fix, context);
+    }
+    return;
+  }
+
+  observation.movingSinceAt = undefined;
+  observation.lastObservationAt = context.now;
+  if (
+    observation.hiddenAt === undefined &&
+    context.now - observation.stationarySinceAt >= state.rules.hiddenModeActivationMs
+  ) {
+    observation.hiddenAt = context.now;
+    clearAutomaticTagState(player);
+  }
+}
+
+function awardTag(
+  state: RoomState,
+  seeker: PlayerRecord,
+  hider: PlayerRecord,
+  context: RuleContext,
+  automatic: boolean,
+): void {
+  hider.status = "eliminated";
+  clearPlayerLocation(hider);
+  addEvent(state, context, {
+    type: "player_tagged",
+    actorId: seeker.id,
+    targetId: hider.id,
+    tagMethod: automatic ? "automatic" : "manual",
+    message: automatic ? `${hider.name} was automatically tagged.` : `${hider.name} was tagged.`,
+  });
+  const activeHider = Object.values(state.players).some(
+    (player) => player.role === "hider" && player.status === "active",
+  );
+  if (!activeHider) {
+    finishMatch(state, "seeker", context, "All hiders were tagged. The seeker wins.", seeker.id);
+  }
+}
+
 function tag(state: RoomState, actorId: string, context: RuleContext): RuleResult {
   const seeker = state.players[actorId];
   if (state.phase !== "active") return fail("wrong_phase", "Tagging is available during active play.");
@@ -535,18 +671,65 @@ function tag(state: RoomState, actorId: string, context: RuleContext): RuleResul
       ? fail("location_uncertain", "Someone may be close, but GPS is not precise enough to award the tag.")
       : fail("no_target", "No hider is in tag range.");
   }
-  nearest.player.status = "eliminated";
-  clearPlayerLocation(nearest.player);
-  addEvent(state, context, {
-    type: "player_tagged",
-    actorId,
-    targetId: nearest.player.id,
-    message: `${nearest.player.name} was tagged.`,
-  });
-  if (hiders.every((player) => player.status === "eliminated")) {
-    finishMatch(state, "seeker", context, "All hiders were tagged. The seeker wins.", actorId);
-  }
+  awardTag(state, seeker, nearest.player, context, false);
   return ok(`${nearest.player.name} tagged.`);
+}
+
+function processAutomaticTagObservation(state: RoomState, context: RuleContext): void {
+  const hiders = Object.values(state.players).filter(
+    (player) => player.role === "hider" && player.status === "active",
+  );
+  const clearCandidates = () => {
+    for (const hider of hiders) clearAutomaticTagState(hider);
+  };
+  if (!state.rules.autoTagEnabled || state.phase !== "active" || state.immobilized) {
+    clearCandidates();
+    return;
+  }
+  const seeker = Object.values(state.players).find(
+    (player) => player.role === "seeker" && player.status === "active",
+  );
+  if (!seeker || seeker.outsideBoundary) {
+    clearCandidates();
+    return;
+  }
+  const seekerFix = usableFix(state, seeker, context.now);
+  if (!seekerFix) {
+    clearCandidates();
+    return;
+  }
+
+  let nearestQualified: { player: PlayerRecord; distance: number } | undefined;
+  for (const hider of hiders) {
+    const hiderFix = usableFix(state, hider, context.now);
+    const hidden = hider.hiddenMode?.hiddenAt !== undefined;
+    if (!hiderFix || hidden) {
+      clearAutomaticTagState(hider);
+      continue;
+    }
+    const distance = distanceMeters(seekerFix, hiderFix);
+    if (distance > state.rules.tagRadiusMeters) {
+      clearAutomaticTagState(hider);
+      continue;
+    }
+    if (
+      hider.autoTagProximityStartedAt === undefined ||
+      hider.autoTagLastObservedAt === undefined ||
+      context.now - hider.autoTagLastObservedAt > state.rules.maxObservationGapMs
+    ) {
+      hider.autoTagProximityStartedAt = context.now;
+    }
+    hider.autoTagLastObservedAt = context.now;
+    if (
+      context.now - hider.autoTagProximityStartedAt >= state.rules.autoTagDwellMs &&
+      (!nearestQualified || distance < nearestQualified.distance)
+    ) {
+      nearestQualified = { player: hider, distance };
+    }
+  }
+  if (nearestQualified) {
+    awardTag(state, seeker, nearestQualified.player, context, true);
+  }
 }
 
 function leaveParty(state: RoomState, actorId: string, context: RuleContext): RuleResult {
@@ -803,6 +986,7 @@ export function acceptLocation(
     !Number.isFinite(fix.latitude) ||
     !Number.isFinite(fix.longitude) ||
     !Number.isFinite(fix.accuracyMeters) ||
+    (fix.speedMetersPerSecond !== undefined && !Number.isFinite(fix.speedMetersPerSecond)) ||
     !Number.isFinite(fix.sampledAtMs) ||
     !Number.isInteger(fix.sampledAtMs) ||
     !Number.isInteger(fix.sampleAgeMs) ||
@@ -813,6 +997,7 @@ export function acceptLocation(
     Math.abs(fix.latitude) > 90 ||
     Math.abs(fix.longitude) > 180 ||
     fix.accuracyMeters < 0 ||
+    (fix.speedMetersPerSecond !== undefined && fix.speedMetersPerSecond < 0) ||
     fix.sampleAgeMs < 0 ||
     fix.sampledAtMs < 0 ||
     fix.sequence < 0
@@ -834,9 +1019,11 @@ export function acceptLocation(
   player.connected = true;
   state.version += 1;
   processBoundaryObservation(state, player, player.latestFix, context);
+  processHiddenModeObservation(state, player, player.latestFix, context);
   if (player.role === "seeker" && player.status === "active") {
     processSeekerTrapObservation(state, player, player.latestFix, context);
   }
+  processAutomaticTagObservation(state, context);
   return ok("Location accepted.");
 }
 
@@ -866,6 +1053,15 @@ export function snapshotForPlayer(state: RoomState, viewerId: string, now: numbe
       gpsAccuracyMeters: player.latestFix?.accuracyMeters,
       deviceStatus: player.deviceStatus,
       location: canSeeLocation ? player.latestFix : undefined,
+      hiddenMode: player.id === viewerId && player.role === "hider" && player.status === "active"
+        ? {
+            hidden: player.hiddenMode?.hiddenAt !== undefined,
+            activatesAt: player.hiddenMode?.hiddenAt === undefined && player.hiddenMode
+              ? player.hiddenMode.stationarySinceAt + state.rules.hiddenModeActivationMs
+              : undefined,
+            hiddenAt: player.hiddenMode?.hiddenAt,
+          }
+        : undefined,
       trapChargesRemaining: player.id === viewerId ? player.trapChargesRemaining : undefined,
     };
   });

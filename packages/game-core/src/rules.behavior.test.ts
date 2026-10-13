@@ -364,7 +364,7 @@ describe("role visibility", () => {
 
 describe("tag behavior", () => {
   it("returns no target outside range and enforces the attempt cooldown", () => {
-    const game = setup();
+    const game = setup({ autoTagEnabled: false });
     configureAndStart(game);
     expect(game.command("seeker", { type: "tag" }).code).toBe("no_target");
 
@@ -401,6 +401,124 @@ describe("tag behavior", () => {
     const game = setup();
     configureAndStart(game);
     expect(game.command("host", { type: "tag" }).code).toBe("seeker_only");
+  });
+});
+
+describe("automatic tags and Hidden Mode", () => {
+  it("automatically tags a moving hider after continuous precise proximity", () => {
+    const game = setup({ autoTagDwellMs: 1_000 });
+    configureAndStart(game);
+
+    game.location("seeker", point(4));
+    expect(game.state.players.host.status).toBe("active");
+    game.tick(1_000);
+    game.location("seeker", point(4));
+
+    expect(game.state.players.host.status).toBe("eliminated");
+    expect(game.state.events.some(
+      (event) => event.type === "player_tagged" && event.message.includes("automatically"),
+    )).toBe(true);
+  });
+
+  it("enters Hidden Mode after four observed stationary seconds during the hiding countdown", () => {
+    const game = setup({ hidingDurationMs: 10_000, hiddenModeActivationMs: 4_000 });
+    configureAndStart(game, { advanceToActive: false });
+
+    game.location("host", point(0), { speedMetersPerSecond: 0 });
+    for (let second = 1; second <= 4; second += 1) {
+      game.tick(1_000);
+      game.location("host", point(0), { speedMetersPerSecond: 0 });
+      game.location("seeker", point(20), { speedMetersPerSecond: 0 });
+    }
+
+    const hiderView = snapshotForPlayer(game.state, "host", game.now());
+    expect(hiderView.players.find((player) => player.id === "host")?.hiddenMode).toMatchObject({
+      hidden: true,
+      hiddenAt: game.now(),
+    });
+    const seekerView = snapshotForPlayer(game.state, "seeker", game.now());
+    expect(seekerView.players.find((player) => player.id === "host")?.hiddenMode).toBeUndefined();
+  });
+
+  it("blocks auto-tag while hidden but still permits a manual tag", () => {
+    const game = setup({ hiddenModeActivationMs: 4_000, autoTagDwellMs: 1_000 });
+    configureAndStart(game);
+    for (let second = 1; second <= 4; second += 1) {
+      game.tick(1_000);
+      game.location("host", point(0), { speedMetersPerSecond: 0 });
+      game.location("seeker", point(20), { speedMetersPerSecond: 0 });
+    }
+    expect(game.state.players.host.hiddenMode?.hiddenAt).toBeDefined();
+
+    game.location("seeker", point(4));
+    game.tick(1_000);
+    game.location("seeker", point(4));
+    expect(game.state.players.host.status).toBe("active");
+
+    expect(game.command("seeker", { type: "tag" }).ok).toBe(true);
+    expect(game.state.players.host.status).toBe("eliminated");
+  });
+
+  it("ignores accuracy-sized GPS jitter and exits Hidden Mode after reliable sustained movement", () => {
+    const game = setup({ hiddenModeActivationMs: 4_000, hiddenModeExitDistanceMeters: 3 });
+    configureAndStart(game);
+    for (let second = 1; second <= 4; second += 1) {
+      game.tick(1_000);
+      game.location("host", point(0), { speedMetersPerSecond: 0 });
+      game.location("seeker", point(20));
+    }
+    expect(game.state.players.host.hiddenMode?.hiddenAt).toBeDefined();
+
+    game.tick(500);
+    game.location("host", point(4), { accuracyMeters: 6, speedMetersPerSecond: 0 });
+    expect(game.state.players.host.hiddenMode?.hiddenAt).toBeDefined();
+
+    game.tick(500);
+    game.location("host", point(12), { accuracyMeters: 2, speedMetersPerSecond: 0 });
+    expect(game.state.players.host.hiddenMode?.hiddenAt).toBeDefined();
+    game.tick(1_000);
+    game.location("host", point(13), { accuracyMeters: 2, speedMetersPerSecond: 0 });
+    expect(game.state.players.host.hiddenMode?.hiddenAt).toBeUndefined();
+  });
+
+  it("requires sustained reported movement before clearing Hidden Mode", () => {
+    const game = setup({ hiddenModeActivationMs: 4_000, hiddenModeMovementSustainMs: 1_000 });
+    configureAndStart(game);
+    for (let second = 1; second <= 4; second += 1) {
+      game.tick(1_000);
+      game.location("host", point(0), { speedMetersPerSecond: 0 });
+      game.location("seeker", point(20));
+    }
+
+    game.location("host", point(0), { speedMetersPerSecond: 1.2 });
+    expect(game.state.players.host.hiddenMode?.hiddenAt).toBeDefined();
+    game.tick(1_000);
+    game.location("host", point(0), { speedMetersPerSecond: 1.2 });
+    expect(game.state.players.host.hiddenMode?.hiddenAt).toBeUndefined();
+  });
+
+  it("clears Hidden Mode after an observation gap or match pause", () => {
+    const enterHidden = (game: ReturnType<typeof setup>) => {
+      for (let second = 1; second <= 4; second += 1) {
+        game.tick(1_000);
+        game.location("host", point(0), { speedMetersPerSecond: 0 });
+        game.location("seeker", point(20));
+      }
+      expect(game.state.players.host.hiddenMode?.hiddenAt).toBeDefined();
+    };
+
+    const interrupted = setup({ hiddenModeActivationMs: 4_000 });
+    configureAndStart(interrupted);
+    enterHidden(interrupted);
+    interrupted.tick(interrupted.state.rules.maxObservationGapMs + 1);
+    interrupted.location("host", point(0), { speedMetersPerSecond: 0 });
+    expect(interrupted.state.players.host.hiddenMode?.hiddenAt).toBeUndefined();
+
+    const paused = setup({ hiddenModeActivationMs: 4_000 });
+    configureAndStart(paused);
+    enterHidden(paused);
+    expect(paused.command("host", { type: "pause_match" }).ok).toBe(true);
+    expect(paused.state.players.host.hiddenMode).toBeUndefined();
   });
 });
 

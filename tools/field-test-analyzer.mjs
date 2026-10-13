@@ -174,11 +174,15 @@ function gameplaySummary(events) {
     }
   }
   const count = (type) => [...gameEvents.values()].filter((event) => event.type === type).length;
+  const tags = [...gameEvents.values()].filter((event) => event.type === "player_tagged");
   return {
     tagAttempts,
     acceptedTagAttempts,
     tagRejections,
-    playersTagged: count("player_tagged"),
+    playersTagged: tags.length,
+    automaticTags: tags.filter((event) => event.tagMethod === "automatic").length,
+    manualTags: tags.filter((event) => event.tagMethod === "manual").length,
+    legacyTags: tags.filter((event) => event.tagMethod !== "automatic" && event.tagMethod !== "manual").length,
     trapsPlaced: count("trap_placed"),
     trapsTriggered: count("trap_triggered"),
     trapsReleased: count("trap_released"),
@@ -240,6 +244,9 @@ function decisionEvidence(events, players) {
         .filter((value) => typeof value === "string"))];
       decisions.push({
         type: gameEvent.type,
+        tagMethod: gameEvent.type === "player_tagged" && typeof gameEvent.tagMethod === "string"
+          ? gameEvent.tagMethod
+          : undefined,
         gameEventId: typeof gameEvent.id === "string" ? gameEvent.id : undefined,
         atMs: finiteNumber(gameEvent.at) ?? atMs,
         participants: participantIds.map((idValue) => nearestPriorFix(players, idValue, atMs)),
@@ -562,7 +569,7 @@ export function renderTextReport(report) {
   }
   lines.push("", "Reconnects and outcomes");
   lines.push(`  Reconnects: ${report.reconnects.completed} completed, ${report.reconnects.unresolved} unresolved; p95 ${duration(report.reconnects.durationMs.p95)}`);
-  lines.push(`  Tags: ${report.gameplay.acceptedTagAttempts}/${report.gameplay.tagAttempts} accepted; ${report.gameplay.playersTagged} players tagged`);
+  lines.push(`  Tags: ${report.gameplay.playersTagged} players tagged (${report.gameplay.automaticTags} automatic, ${report.gameplay.manualTags} manual, ${report.gameplay.legacyTags} legacy/unknown); ${report.gameplay.acceptedTagAttempts}/${report.gameplay.tagAttempts} manual attempts accepted`);
   lines.push(`  Traps: ${report.gameplay.trapsPlaced} placed, ${report.gameplay.trapsTriggered} triggered, ${report.gameplay.trapsReleased} released`);
   lines.push(`  Decision evidence records: ${report.gameplay.decisionEvidence.count} (use --json for accuracy and sample-age context)`);
   if (report.longestGaps.length) {

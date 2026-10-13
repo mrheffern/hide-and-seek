@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PROTOCOL_VERSION } from "@hide-and-seek/protocol";
 
 const randomId = vi.hoisted(() => vi.fn(() => "command-123456"));
 vi.mock("./session", () => ({ randomId }));
@@ -61,7 +62,7 @@ describe("mobile API transport", () => {
       "Content-Type": "application/json",
     });
     expect(JSON.parse(String(init.body))).toEqual({
-      protocolVersion: 1,
+      protocolVersion: PROTOCOL_VERSION,
       commandId: "command-123456",
       command: { type: "tag" },
     });
@@ -82,7 +83,7 @@ describe("mobile API transport", () => {
     };
     await uploadLocation(session, fix);
     const init = fetchMock.mock.calls[0][1] as RequestInit;
-    expect(JSON.parse(String(init.body))).toEqual({ protocolVersion: 1, fix });
+    expect(JSON.parse(String(init.body))).toEqual({ protocolVersion: PROTOCOL_VERSION, fix });
   });
 
   it("includes optional battery and network health with location uploads", async () => {
@@ -106,7 +107,7 @@ describe("mobile API transport", () => {
     };
     await uploadLocation(session, fix, deviceStatus);
     const init = fetchMock.mock.calls[0][1] as RequestInit;
-    expect(JSON.parse(String(init.body))).toEqual({ protocolVersion: 1, fix, deviceStatus });
+    expect(JSON.parse(String(init.body))).toEqual({ protocolVersion: PROTOCOL_VERSION, fix, deviceStatus });
   });
 
   it("surfaces structured server errors to the UI", async () => {
@@ -155,9 +156,9 @@ describe("mobile API transport", () => {
   });
 
   it("builds secure and local WebSocket URLs with the protocol version", () => {
-    expect(socketUrl(session)).toBe("wss://game.example/rooms/ABC123/connect?v=1");
+    expect(socketUrl(session)).toBe(`wss://game.example/rooms/ABC123/connect?v=${PROTOCOL_VERSION}`);
     expect(socketUrl({ ...session, apiUrl: "http://10.0.2.2:8787" })).toBe(
-      "ws://10.0.2.2:8787/rooms/ABC123/connect?v=1",
+      `ws://10.0.2.2:8787/rooms/ABC123/connect?v=${PROTOCOL_VERSION}`,
     );
   });
 

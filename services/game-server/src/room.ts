@@ -8,6 +8,7 @@ import {
   playerIdForToken,
   snapshotForPlayer,
   type RuleContext,
+  upgradeRoomState,
 } from "@hide-and-seek/game-core";
 import type {
   ClientDiagnosticEvent,
@@ -85,7 +86,8 @@ export class GameRoom extends DurableObject<Env> {
     this.diagnosticCount = this.sql.exec<{ count: number }>("SELECT COUNT(*) AS count FROM diagnostics").one().count;
     this.pruneDiagnostics();
     context.blockConcurrencyWhile(async () => {
-      this.room = await context.storage.get<RoomState>("room");
+      const storedRoom = await context.storage.get<RoomState>("room");
+      this.room = storedRoom ? upgradeRoomState(storedRoom) : undefined;
       this.lastCheckpointAt = Date.now();
     });
   }
@@ -277,6 +279,12 @@ export class GameRoom extends DurableObject<Env> {
       winner: this.room.winner,
       playerCount: Object.keys(this.room.players).length,
       activePlayerCount: Object.values(this.room.players).filter((player) => player.status === "active").length,
+      activeHiderCount: Object.values(this.room.players).filter(
+        (player) => player.role === "hider" && player.status === "active",
+      ).length,
+      hiddenHiderCount: Object.values(this.room.players).filter(
+        (player) => player.role === "hider" && player.status === "active" && player.hiddenMode?.hiddenAt !== undefined,
+      ).length,
       boundaryPoints: this.room.boundary.length,
       trapCount: this.room.traps.length,
       immobilized: this.room.immobilized ? { ...this.room.immobilized } : undefined,
@@ -547,6 +555,9 @@ export class GameRoom extends DurableObject<Env> {
         phase: this.room.phase,
         status: playerBefore.status,
         immobilizedTrapId: this.room.immobilized?.trapId,
+        activeHiderCount: Object.values(this.room.players).filter(
+          (player) => player.role === "hider" && player.status === "active",
+        ).length,
       };
       const result = acceptLocation(
         this.room,
@@ -575,7 +586,10 @@ export class GameRoom extends DurableObject<Env> {
         const criticalChange =
           this.room.phase !== criticalBefore.phase ||
           this.room.players[playerId].status !== criticalBefore.status ||
-          this.room.immobilized?.trapId !== criticalBefore.immobilizedTrapId;
+          this.room.immobilized?.trapId !== criticalBefore.immobilizedTrapId ||
+          Object.values(this.room.players).filter(
+            (player) => player.role === "hider" && player.status === "active",
+          ).length !== criticalBefore.activeHiderCount;
         // Lobby tracking is intentionally one-shot, so there may be no later
         // location request to checkpoint this readiness fix before hibernation.
         const lobbyReadinessFix = result.ok && stateBefore?.phase === "lobby";

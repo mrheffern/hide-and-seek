@@ -20,12 +20,14 @@ let lastNotifiedTrapId: string | undefined;
 let eliminationNotified = false;
 let boundaryAlert: "near" | "outside" | undefined;
 let lastDetailedLocationDiagnosticAt = 0;
+let lastHiddenMode: boolean | undefined;
 
 export function resetLocationNotificationState(): void {
   lastNotifiedTrapId = undefined;
   eliminationNotified = false;
   boundaryAlert = undefined;
   lastDetailedLocationDiagnosticAt = 0;
+  lastHiddenMode = undefined;
   resetDeviceStatusCache();
 }
 
@@ -62,6 +64,10 @@ if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
         accuracyMeters: Math.max(0, location.coords.accuracy ?? 9_999),
+        speedMetersPerSecond:
+          typeof location.coords.speed === "number" && Number.isFinite(location.coords.speed) && location.coords.speed >= 0
+            ? location.coords.speed
+            : undefined,
         sampledAtMs: location.timestamp,
         sampleAgeMs: Math.max(0, now - location.timestamp),
         sequence,
@@ -94,7 +100,10 @@ if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
         || currentSession.token !== session.token || currentSession.locationSessionId !== session.locationSessionId) return;
       setDiagnosticContext({ matchId: result.snapshot.matchId });
       diagnosticContext = { ...diagnosticContext, matchId: result.snapshot.matchId };
-      if (recordDetailedSample || !result.ok || result.snapshot.outsideBoundary || result.snapshot.immobilized) recordDiagnostic({
+      const self = result.snapshot.players.find((player) => player.id === result.snapshot.selfId);
+      const hiddenModeChanged = self?.hiddenMode !== undefined && self.hiddenMode.hidden !== lastHiddenMode;
+      if (self?.hiddenMode !== undefined) lastHiddenMode = self.hiddenMode.hidden;
+      if (recordDetailedSample || hiddenModeChanged || !result.ok || result.snapshot.outsideBoundary || result.snapshot.immobilized) recordDiagnostic({
         context: diagnosticContext,
         level: "debug",
         category: "location",
@@ -110,10 +119,10 @@ if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
             boundaryDistanceMeters: result.snapshot.boundaryDistanceMeters,
             boundaryGraceRemainingMs: result.snapshot.boundaryGraceRemainingMs,
             immobilized: result.snapshot.immobilized,
+            hiddenMode: self?.hiddenMode,
           },
         },
       });
-      const self = result.snapshot.players.find((player) => player.id === result.snapshot.selfId);
       for (const cue of consumeGameplaySoundCues(result.snapshot)) {
         await playGameplaySound(cue.kind, cue.eventId);
       }

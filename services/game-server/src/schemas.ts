@@ -29,6 +29,7 @@ export const locationEnvelopeSchema = z.object({
   protocolVersion: z.literal(PROTOCOL_VERSION),
   fix: coordinate.extend({
     accuracyMeters: z.number().min(0).max(10_000),
+    speedMetersPerSecond: z.number().min(0).max(100).optional(),
     sampledAtMs: z.number().int().nonnegative(),
     sampleAgeMs: z.number().int().min(0).max(10 * 60_000),
     sequence: z.number().int().nonnegative(),

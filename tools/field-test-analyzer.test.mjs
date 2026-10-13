@@ -77,7 +77,7 @@ test("fails when fewer than 95 percent of moving fixes arrive within three secon
 });
 
 test("reports reconnect duration, rejected fixes, and deduplicated game outcomes", () => {
-  const gameEvent = { id: "tagged-1", at: 103_000, type: "player_tagged", targetId: "player-2" };
+  const gameEvent = { id: "tagged-1", at: 103_000, type: "player_tagged", targetId: "player-2", tagMethod: "manual" };
   const events = [
     ...locationEvents({ intervals: 2 }),
     event({ source: "client", category: "realtime", name: "websocket_closed", clientAtMs: 120_000 }),
@@ -94,8 +94,38 @@ test("reports reconnect duration, rejected fixes, and deduplicated game outcomes
   assert.equal(report.summary.rejectedLocations, 1);
   assert.equal(report.gameplay.tagAttempts, 1);
   assert.equal(report.gameplay.playersTagged, 1);
+  assert.equal(report.gameplay.manualTags, 1);
+  assert.equal(report.gameplay.automaticTags, 0);
   assert.equal(report.gameplay.decisionEvidence.count, 2);
   assert.equal(report.gameplay.decisionEvidence.decisions[0].participants[0].accuracyMeters, 5);
+});
+
+test("separates automatic tags from manual tag attempts", () => {
+  const automaticTag = {
+    id: "auto-tagged-1",
+    at: 103_000,
+    type: "player_tagged",
+    actorId: "player-1",
+    targetId: "player-2",
+    tagMethod: "automatic",
+  };
+  const report = analyzeDiagnostics({
+    events: [
+      ...locationEvents({ intervals: 2 }),
+      event({ serverAtMs: 103_000, name: "location_processed", payload: {
+        result: { ok: true },
+        gameEvents: [automaticTag],
+      } }),
+    ],
+  });
+  assert.equal(report.gameplay.playersTagged, 1);
+  assert.equal(report.gameplay.automaticTags, 1);
+  assert.equal(report.gameplay.manualTags, 0);
+  assert.equal(report.gameplay.tagAttempts, 0);
+  assert.equal(
+    report.gameplay.decisionEvidence.decisions.find((decision) => decision.type === "player_tagged")?.tagMethod,
+    "automatic",
+  );
 });
 
 test("does not count stale or rejected moving fixes as timely", () => {

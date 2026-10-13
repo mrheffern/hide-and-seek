@@ -77,6 +77,15 @@ describe("beta rule preset", () => {
   it("gives players a ten-second hiding countdown", () => {
     expect(DEFAULT_RULES.hidingDurationMs).toBe(10_000);
   });
+
+  it("enables auto-tag with four-second Hidden Mode protection", () => {
+    expect(DEFAULT_RULES).toMatchObject({
+      autoTagEnabled: true,
+      autoTagDwellMs: 1_000,
+      hiddenModeActivationMs: 4_000,
+      hiddenModeExitDistanceMeters: 3,
+    });
+  });
 });
 
 describe("authoritative visibility", () => {

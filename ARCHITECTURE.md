@@ -67,7 +67,7 @@ Center the map on the host's GPS position and let them pan to the campus. This a
 
 Clients request actions; the room server decides outcomes. A phone cannot declare itself untrapped, change its role, reset a cooldown, or eliminate another player. The host manages lobby configuration but receives only the information allowed by their playing role.
 
-Use the lifecycle `LOBBY -> HIDING -> ACTIVE -> FINISHED`, with an explicit `PAUSED` state. Host edits are allowed in the lobby. Starting a round freezes its rule version and boundary. Server timestamps determine the hiding countdown, round deadline, radar window, and cooldowns. Proposed defaults are a 60-second hiding period and 30-minute round, with 60-minute rounds used in the cost model.
+Use the lifecycle `LOBBY -> HIDING -> ACTIVE -> FINISHED`, with an explicit `PAUSED` state. Host edits are allowed in the lobby. Starting a round freezes its rule version and boundary. Server timestamps determine the hiding countdown, round deadline, radar window, and cooldowns. The beta defaults are a 10-second hiding period and 30-minute round, with 60-minute rounds used in the cost model.
 
 Start/resume requires each remaining participant to have precise-location access, the chosen background permissions, running tracking, and a recent usable fix. The seeker wins when all hiders are eliminated; surviving hiders win when time expires. A seeker departure pauses the round and requires reconnect or explicit cancellation/restart with a new seeker. Empty parties expire. Transfer lobby administration to a remaining member if the host leaves; this does not grant hidden-map access.
 
@@ -101,7 +101,7 @@ The selected Expo path requires configured background permissions and native bui
 
 If Expo callbacks cannot meet the measured reliability requirement, replace the location adapter with a native module using Core Location and Android's fused location provider. Native code still cannot guarantee operation after force-quit, permission revocation, loss of signal, or OS restrictions. [Apple background location](https://developer.apple.com/documentation/corelocation/handling-location-updates-in-the-background), [Android foreground-service restrictions](https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start)
 
-Every fix carries coordinates, reported horizontal accuracy, sample timestamp, sample age, sequence number, and location-session ID. Record server receipt time too. Estimate a bounded device/server clock offset during connection and use monotonic session timing where available; never compare an uncorrected phone wall clock directly to server time. Reject delayed buffered fixes, stale/replayed fixes, excessive update rates, impossible values, and implausible jumps. Phone-reported coordinates and ages remain untrusted evidence: this discourages casual cheating but does not prove physical presence.
+Every fix carries coordinates, reported horizontal accuracy, optional native speed, sample timestamp, sample age, sequence number, and location-session ID. Record server receipt time too. Estimate a bounded device/server clock offset during connection and use monotonic session timing where available; never compare an uncorrected phone wall clock directly to server time. Reject delayed buffered fixes, stale/replayed fixes, excessive update rates, impossible values, and implausible jumps. Phone-reported coordinates, speed, and ages remain untrusted evidence: this discourages casual cheating but does not prove physical presence.
 
 Starting freshness policy, to tune during field trials:
 
@@ -131,13 +131,15 @@ All players acknowledge the same boundary before the round. Near its edge, show 
 
 A two-dimensional map cannot distinguish floors or reliably decide whether people are separated by a wall. Make the first play area outdoor and ground-level.
 
-### Tag
+### Tag and Hidden Mode
 
-The seeker taps Tag. The server checks active round, seeker role, not trapped/outside, input rate, and recent quality-qualified fixes. It chooses the nearest eligible active hider within the configured distance, commits elimination once, and tells both players.
+During active play, the server continuously evaluates recent quality-qualified fixes. A moving, non-hidden hider who remains within 6.096 meters of an eligible seeker for one continuously observed second is automatically tagged. A stale, weak, interrupted, trapped, or outside-boundary seeker observation cannot award a tag.
 
-Keep the button usable without a target being revealed. Do not send a list of nearby hidden players or enable the button only when one enters range. A failed attempt returns a generic result. Add a short attempt cooldown, proposed two seconds, to limit repeated location probing.
+A hider enters private Hidden Mode after four continuously observed stationary seconds, including time during the hiding countdown. Hidden Mode blocks only automatic tags. It ends after credible movement persists for one second: at least three meters beyond the GPS-accuracy allowance or a native speed estimate of at least 0.8 meters per second. Observation gaps, weak GPS, pauses, and resets clear the state. Only the hider receives their status and countdown; never reveal it to the seeker.
 
-For uncertain GPS, display an uncertainty result rather than inventing precision. An optional mutual-confirmation mode can let both players confirm a real encounter during friendly testing; it is a separate rule mode, not an automatic GPS success.
+The seeker retains the manual **TAG** button for a stationary hider they physically discover. The server checks active round, seeker role, not trapped/outside, input rate, and recent qualified fixes, then chooses the nearest active hider within range regardless of Hidden Mode. Keep the button usable without revealing a target or enabling it conditionally. A failed attempt returns a generic result and a two-second cooldown limits location probing.
+
+For uncertain GPS, refuse both automatic and manual outcomes rather than inventing precision. Automatic and manual success produce the same authoritative tag event, audio, elimination, and win handling, with the tag method retained in diagnostics.
 
 ### Radar
 
@@ -269,6 +271,6 @@ Avoid buying paid map, analytics, SMS, voice, or database subscriptions before f
 
 ## Decisions to carry into implementation
 
-Committed requirements: shared Android/iPhone codebase; locked-phone play; server-hidden hider locations; host-drawn boundary; tag action; three-second radar with five-minute cooldown; 20-foot-diameter trap with 15-second dwell lock.
+Committed requirements: shared Android/iPhone codebase; locked-phone play; server-hidden hider locations and Hidden Mode state; host-drawn boundary; automatic moving-player tags plus manual physical-discovery tags; three-second radar with five-minute cooldown; 20-foot-radius trap with 15-second dwell lock.
 
 Proposed defaults to validate: outdoor play, hiders do not see seeker, initial radar availability, hiding/round duration, trap charges/expiry, boundary penalties, uncertain-GPS fallback, and disconnection pause behavior. The requested distances remain an experimental preset until real-device evidence supports them. No additional product decision blocks starting the location feasibility milestone.

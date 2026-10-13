@@ -2,7 +2,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createRoomState } from "@hide-and-seek/game-core";
-import type { RoomState } from "@hide-and-seek/protocol";
+import { PROTOCOL_VERSION, type RoomState } from "@hide-and-seek/protocol";
 
 vi.mock("cloudflare:workers", () => ({
   DurableObject: class {
@@ -65,7 +65,7 @@ const clientEvent = (overrides: Record<string, unknown> = {}) => ({
   id: "client-event-123", appSessionId: "app-session-123", clientAtMs: 1234,
   category: "test", name: "client_event", level: "info", ...overrides,
 });
-const batch = (...events: ReturnType<typeof clientEvent>[]) => ({ protocolVersion: 1, events });
+const batch = (...events: ReturnType<typeof clientEvent>[]) => ({ protocolVersion: PROTOCOL_VERSION, events });
 
 describe("server diagnostic integrity", () => {
   it("deduplicates per authenticated player and does not attribute old lobby events to a current match", async () => {
@@ -198,7 +198,7 @@ describe("room state and audit consistency", () => {
     const state = stateFixture();
     state.events = Array.from({ length: 40 }, (_, index) => ({ id: `old-${index}`, at: 1, type: "player_joined" as const, message: "Old event" }));
     const { request, database } = await roomFixture(state);
-    expect((await request("command", "host-token", { protocolVersion: 1, commandId: "seeker-command", command: { type: "set_seeker", playerId: "guest-id" } })).status).toBe(200);
+    expect((await request("command", "host-token", { protocolVersion: PROTOCOL_VERSION, commandId: "seeker-command", command: { type: "set_seeker", playerId: "guest-id" } })).status).toBe(200);
     const event = JSON.parse(String(database.prepare("SELECT payload_json FROM diagnostics WHERE name = 'command_processed'").get()!.payload_json));
     expect(event.gameEvents).toHaveLength(1);
     expect(event.gameEvents[0].type).toBe("seeker_selected");
@@ -209,8 +209,8 @@ describe("room state and audit consistency", () => {
     state.phase = "finished";
     state.matchId = "finished-match";
     const { request, database } = await roomFixture(state);
-    await request("command", "host-token", { protocolVersion: 1, commandId: "lobby-command", command: { type: "return_to_lobby" } });
-    await request("command", "guest-token", { protocolVersion: 1, commandId: "leave-command", command: { type: "leave_party" } });
+    await request("command", "host-token", { protocolVersion: PROTOCOL_VERSION, commandId: "lobby-command", command: { type: "return_to_lobby" } });
+    await request("command", "guest-token", { protocolVersion: PROTOCOL_VERSION, commandId: "leave-command", command: { type: "leave_party" } });
     const events = database.prepare("SELECT match_id, player_name FROM diagnostics WHERE name = 'command_processed' ORDER BY sequence").all();
     expect(events).toEqual([{ match_id: "finished-match", player_name: "Host" }, { match_id: null, player_name: "Guest" }]);
   });
@@ -220,7 +220,7 @@ describe("room state and audit consistency", () => {
     vi.spyOn(Date, "now").mockReturnValue(now);
     const state = stateFixture();
     const { request, put } = await roomFixture(state);
-    const response = await request("location", "host-token", { protocolVersion: 1, fix: {
+    const response = await request("location", "host-token", { protocolVersion: PROTOCOL_VERSION, fix: {
       latitude: 34,
       longitude: -118,
       accuracyMeters: 30,
@@ -245,7 +245,7 @@ describe("room state and audit consistency", () => {
       sampleAgeMs: 0, sequence: 1, sessionId: "old-session",
     };
     const { request, put } = await roomFixture(state);
-    const response = await request("location", "host-token", { protocolVersion: 1, fix: {
+    const response = await request("location", "host-token", { protocolVersion: PROTOCOL_VERSION, fix: {
       latitude: 34, longitude: -118, accuracyMeters: 2, sampledAtMs: Date.now(), sampleAgeMs: 60_001, sequence: 1, sessionId: "gps-session",
     } });
     expect(response.status).toBe(409);

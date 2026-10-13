@@ -1,4 +1,4 @@
-export const PROTOCOL_VERSION = 1 as const;
+export const PROTOCOL_VERSION = 2 as const;
 
 export type PlayerRole = "seeker" | "hider";
 export type PlayerStatus = "active" | "eliminated" | "departed";
@@ -14,6 +14,8 @@ export interface Coordinate {
 
 export interface PositionFix extends Coordinate {
   accuracyMeters: number;
+  /** Native speed estimate when the platform provides a trustworthy non-negative value. */
+  speedMetersPerSecond?: number;
   sampledAtMs: number;
   sampleAgeMs: number;
   sequence: number;
@@ -41,6 +43,12 @@ export interface AcceptedDeviceStatus extends DeviceStatusReport {
 
 export interface GameRules {
   tagRadiusMeters: number;
+  autoTagEnabled: boolean;
+  autoTagDwellMs: number;
+  hiddenModeActivationMs: number;
+  hiddenModeExitDistanceMeters: number;
+  hiddenModeMovementSpeedMetersPerSecond: number;
+  hiddenModeMovementSustainMs: number;
   trapRadiusMeters: number;
   trapDwellMs: number;
   trapArmMs: number;
@@ -58,6 +66,15 @@ export interface GameRules {
   trapsPerHider: number;
 }
 
+export interface HiddenModeRecord {
+  anchor: Coordinate;
+  anchorAccuracyMeters: number;
+  stationarySinceAt: number;
+  lastObservationAt: number;
+  movingSinceAt?: number;
+  hiddenAt?: number;
+}
+
 export interface PlayerRecord {
   id: string;
   name: string;
@@ -68,6 +85,9 @@ export interface PlayerRecord {
   latestFix?: AcceptedPositionFix;
   trapChargesRemaining: number;
   lastTagAttemptAt?: number;
+  hiddenMode?: HiddenModeRecord;
+  autoTagProximityStartedAt?: number;
+  autoTagLastObservedAt?: number;
   outsideBoundary: boolean;
   boundaryOutsideMs: number;
   boundaryLastObservedAt?: number;
@@ -117,6 +137,8 @@ export interface GameEvent {
     | "returned_to_lobby";
   actorId?: string;
   targetId?: string;
+  /** Included on player_tagged events so diagnostics can separate proximity and manual outcomes. */
+  tagMethod?: "automatic" | "manual";
   message: string;
 }
 
@@ -159,6 +181,12 @@ export interface VisiblePlayer {
   gpsAccuracyMeters?: number;
   deviceStatus?: AcceptedDeviceStatus;
   location?: AcceptedPositionFix;
+  /** Only included for an active hider viewing their own snapshot. */
+  hiddenMode?: {
+    hidden: boolean;
+    activatesAt?: number;
+    hiddenAt?: number;
+  };
   /** Only included for the player viewing their own snapshot. */
   trapChargesRemaining?: number;
 }

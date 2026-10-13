@@ -560,6 +560,41 @@ The clips behave like video or music audio and can play when the phone's alert s
 - `apps/mobile/src/location/backgroundLocation.ts`
 - `apps/mobile/app.json`
 
+## DEC-020 — Automatic tags with private Hidden Mode
+
+**Status:** Accepted
+
+**Date:** 2026-10-13
+
+### Context
+
+A proximity tag should work while players are running without requiring the seeker to watch or tap the phone. However, automatically eliminating a hider who has stopped at a hiding place would undermine physical discovery and would be especially vulnerable to GPS drift or positions that appear close through a wall.
+
+### Decision
+
+- The server, never either phone, decides automatic tags and Hidden Mode.
+- A precise hider who remains credibly stationary for four continuously observed seconds enters Hidden Mode. The hiding countdown counts toward those four seconds.
+- Hidden Mode prevents automatic tags only. The seeker's existing **TAG** action remains the physical-discovery fallback and can tag a hidden hider when the authoritative locations are within 6.096 meters.
+- Automatic tagging requires the seeker and a non-hidden hider to have competitive-quality fixes within 6.096 meters for one continuous second. A stale, weak, interrupted, trapped, or out-of-boundary seeker cannot produce an automatic tag.
+- Hidden Mode ends after at least three meters of displacement beyond the reported GPS-accuracy allowance, or a native speed estimate of at least 0.8 meters per second, persists for one second. One noisy fix does not reveal a hider.
+- Weak or stale hider GPS, an observation gap longer than four seconds, a pause, role change, elimination, or round reset clears Hidden Mode and requires a new four-second observation window.
+- Only the hider's own snapshot contains their Hidden Mode status and countdown. The seeker receives neither state nor transition events and cannot use network traffic to determine whether a hider is hidden.
+- Automatic and manual tags emit the same authoritative `player_tagged` event so the existing **Tagged** audio, notification, diagnostics, privacy, and win handling remain consistent.
+
+### Consequences
+
+Running encounters can resolve without screen interaction, while a stationary hiding player must still be physically discovered and manually tagged. GPS uncertainty is handled conservatively, so poor reception may delay entry into Hidden Mode or delay revealing a moving player; those cases must be measured outdoors and near buildings before the mechanic is accepted for competitive play.
+
+### Implementation
+
+- `packages/protocol/src/index.ts`
+- `packages/game-core/src/rules.ts`
+- `packages/game-core/src/rules.behavior.test.ts`
+- `services/game-server/src/room.ts`
+- `services/game-server/src/schemas.ts`
+- `apps/mobile/src/location/`
+- `apps/mobile/App.tsx`
+
 ## New decision template
 
 Copy this section to the end of the log and replace the placeholders.

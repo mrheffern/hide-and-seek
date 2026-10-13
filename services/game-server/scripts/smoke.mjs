@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 
 const baseUrl = process.env.GAME_SERVER_URL ?? "http://127.0.0.1:8787";
+const protocolVersion = 2;
 
 async function jsonRequest(path, init) {
   const response = await fetch(`${baseUrl}${path}`, init);
@@ -42,7 +43,7 @@ await errorRequest(`/rooms/${host.roomCode}/snapshot`, {
 
 const socketBase = baseUrl.replace(/^http/, "ws");
 const socket = new WebSocket(
-  `${socketBase}/rooms/${guest.roomCode}/connect?v=1`,
+  `${socketBase}/rooms/${guest.roomCode}/connect?v=${protocolVersion}`,
   [`game-token.${guest.token}`],
 );
 const firstSnapshot = await new Promise((resolve, reject) => {
@@ -67,7 +68,7 @@ await errorRequest(`/rooms/${host.roomCode}/location`, {
   method: "POST",
   headers: authorized(host.token),
   body: JSON.stringify({
-    protocolVersion: 1,
+    protocolVersion,
     fix: { latitude: 91, longitude: -118, accuracyMeters: 2, sampledAtMs: now, sampleAgeMs: 0, sequence: 1, sessionId: "invalid-location" },
   }),
 }, 400, "invalid_location");
@@ -75,7 +76,7 @@ await jsonRequest(`/rooms/${host.roomCode}/location`, {
   method: "POST",
   headers: authorized(host.token),
   body: JSON.stringify({
-    protocolVersion: 1,
+    protocolVersion,
     fix: { latitude: 34, longitude: -118, accuracyMeters: 2, sampledAtMs: now, sampleAgeMs: 0, sequence: 1, sessionId: "smoke-host-session" },
     deviceStatus: { batteryPercent: 72, isCharging: false, networkType: "wifi", isInternetReachable: true },
   }),
@@ -84,7 +85,7 @@ await jsonRequest(`/rooms/${guest.roomCode}/location`, {
   method: "POST",
   headers: authorized(guest.token),
   body: JSON.stringify({
-    protocolVersion: 1,
+    protocolVersion,
     fix: { latitude: 34.0001, longitude: -118, accuracyMeters: 2, sampledAtMs: now, sampleAgeMs: 0, sequence: 1, sessionId: "smoke-guest-session" },
   }),
 });
@@ -93,7 +94,7 @@ async function command(session, commandId, value) {
   return jsonRequest(`/rooms/${session.roomCode}/command`, {
     method: "POST",
     headers: authorized(session.token),
-    body: JSON.stringify({ protocolVersion: 1, commandId, command: value }),
+    body: JSON.stringify({ protocolVersion, commandId, command: value }),
   });
 }
 
@@ -124,14 +125,14 @@ assert.equal(resume.ok, true);
 await errorRequest(`/rooms/${guest.roomCode}/command`, {
   method: "POST",
   headers: authorized(guest.token),
-  body: JSON.stringify({ protocolVersion: 1, commandId: "smoke-early-radar", command: { type: "use_radar" } }),
+  body: JSON.stringify({ protocolVersion, commandId: "smoke-early-radar", command: { type: "use_radar" } }),
 }, 409, "wrong_phase");
 
 await errorRequest(`/rooms/${host.roomCode}/location`, {
   method: "POST",
   headers: authorized(host.token),
   body: JSON.stringify({
-    protocolVersion: 1,
+    protocolVersion,
     fix: { latitude: 34, longitude: -118, accuracyMeters: 2, sampledAtMs: now, sampleAgeMs: 0, sequence: 1, sessionId: "smoke-host-session" },
   }),
 }, 409, "replayed_location");
@@ -161,7 +162,7 @@ await jsonRequest(`/rooms/${host.roomCode}/diagnostics`, {
   method: "POST",
   headers: authorized(host.token),
   body: JSON.stringify({
-    protocolVersion: 1,
+    protocolVersion,
     events: [{
       id: "smoke-diagnostic-event",
       appSessionId: "smoke-app-session",

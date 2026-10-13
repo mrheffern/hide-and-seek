@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
+import { PROTOCOL_VERSION } from "@hide-and-seek/protocol";
 import { commandEnvelopeSchema, diagnosticBatchSchema, locationEnvelopeSchema, playerNameSchema } from "./schemas";
 
 const command = (overrides: Record<string, unknown> = {}) => ({
-  protocolVersion: 1,
+  protocolVersion: PROTOCOL_VERSION,
   commandId: "command-123",
   command: { type: "tag" },
   ...overrides,
 });
 
 const location = (fixOverrides: Record<string, unknown> = {}) => ({
-  protocolVersion: 1,
+  protocolVersion: PROTOCOL_VERSION,
   fix: {
     latitude: 34,
     longitude: -118,
@@ -46,7 +47,7 @@ describe("command request validation", () => {
   });
 
   it("rejects incompatible protocol versions and invalid command IDs", () => {
-    expect(commandEnvelopeSchema.safeParse(command({ protocolVersion: 2 })).success).toBe(false);
+    expect(commandEnvelopeSchema.safeParse(command({ protocolVersion: 1 })).success).toBe(false);
     expect(commandEnvelopeSchema.safeParse(command({ commandId: "short" })).success).toBe(false);
     expect(commandEnvelopeSchema.safeParse(command({ commandId: "x".repeat(101) })).success).toBe(false);
   });
@@ -80,6 +81,7 @@ describe("command request validation", () => {
 describe("location request validation", () => {
   it("accepts a valid location envelope", () => {
     expect(locationEnvelopeSchema.safeParse(location()).success).toBe(true);
+    expect(locationEnvelopeSchema.safeParse(location({ speedMetersPerSecond: 1.4 })).success).toBe(true);
   });
 
   it("accepts bounded battery and connection health", () => {
@@ -107,6 +109,8 @@ describe("location request validation", () => {
     ["longitude", { longitude: -181 }],
     ["negative accuracy", { accuracyMeters: -1 }],
     ["excessive accuracy", { accuracyMeters: 10_001 }],
+    ["negative speed", { speedMetersPerSecond: -0.1 }],
+    ["impossible speed", { speedMetersPerSecond: 101 }],
     ["negative sample age", { sampleAgeMs: -1 }],
     ["excessive sample age", { sampleAgeMs: 600_001 }],
     ["fractional sequence", { sequence: 1.5 }],
@@ -116,7 +120,7 @@ describe("location request validation", () => {
   });
 
   it("rejects incompatible protocol versions", () => {
-    expect(locationEnvelopeSchema.safeParse({ ...location(), protocolVersion: 2 }).success).toBe(false);
+    expect(locationEnvelopeSchema.safeParse({ ...location(), protocolVersion: 1 }).success).toBe(false);
   });
 });
 
@@ -147,14 +151,14 @@ describe("diagnostic batch validation", () => {
   };
 
   it("accepts structured client events", () => {
-    expect(diagnosticBatchSchema.safeParse({ protocolVersion: 1, events: [event] }).success).toBe(true);
+    expect(diagnosticBatchSchema.safeParse({ protocolVersion: PROTOCOL_VERSION, events: [event] }).success).toBe(true);
   });
 
   it("rejects empty, oversized, malformed, and incompatible batches", () => {
-    expect(diagnosticBatchSchema.safeParse({ protocolVersion: 1, events: [] }).success).toBe(false);
-    expect(diagnosticBatchSchema.safeParse({ protocolVersion: 1, events: Array.from({ length: 101 }, () => event) }).success).toBe(false);
-    expect(diagnosticBatchSchema.safeParse({ protocolVersion: 2, events: [event] }).success).toBe(false);
-    expect(diagnosticBatchSchema.safeParse({ protocolVersion: 1, events: [{ ...event, level: "panic" }] }).success).toBe(false);
-    expect(diagnosticBatchSchema.safeParse({ protocolVersion: 1, events: [{ ...event, id: "short" }] }).success).toBe(false);
+    expect(diagnosticBatchSchema.safeParse({ protocolVersion: PROTOCOL_VERSION, events: [] }).success).toBe(false);
+    expect(diagnosticBatchSchema.safeParse({ protocolVersion: PROTOCOL_VERSION, events: Array.from({ length: 101 }, () => event) }).success).toBe(false);
+    expect(diagnosticBatchSchema.safeParse({ protocolVersion: 1, events: [event] }).success).toBe(false);
+    expect(diagnosticBatchSchema.safeParse({ protocolVersion: PROTOCOL_VERSION, events: [{ ...event, level: "panic" }] }).success).toBe(false);
+    expect(diagnosticBatchSchema.safeParse({ protocolVersion: PROTOCOL_VERSION, events: [{ ...event, id: "short" }] }).success).toBe(false);
   });
 });

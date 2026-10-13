@@ -13,6 +13,7 @@ Do not move on while any must-pass item is failing or untested:
 - [ ] No player sees a role-protected location, trap, or event.
 - [ ] No false tag, trap trigger, or boundary elimination occurs in the recorded scenarios.
 - [ ] Open-sky automatic tags and traps work repeatably at the intended 6.096-meter / 20-foot radius.
+- [ ] Four seconds of observed stillness reliably blocks only automatic tags, and credible movement reliably restores them without GPS-jitter flicker.
 - [ ] Near buildings and trees, weak GPS causes a safe refusal or pause rather than a false game outcome.
 - [ ] Every test phone keeps uploading usable locations for 30–60 minutes while locked and carried normally.
 - [ ] A network loss and app reopen recover the same party and authoritative match state without rejoining.
@@ -52,6 +53,9 @@ These expectations come from the authoritative server rules, not from phone-side
 | Rule | Expected value |
 | --- | ---: |
 | Tag radius | 6.096 m / 20 ft |
+| Automatic-tag proximity dwell | 1 continuous observed second |
+| Hidden Mode entry | 4 continuous observed stationary seconds |
+| Hidden Mode movement threshold | 3 m beyond GPS-accuracy allowance or at least 0.8 m/s, sustained for 1 second |
 | Bear-trap radius | 6.096 m / 20 ft |
 | Trap arming delay | 5 seconds |
 | Trap escape dwell | 15 continuous observed seconds inside the circle |
@@ -83,7 +87,7 @@ Run the measured-distance mechanics in open sky first. Repeat them near a buildi
 
 ## A. Install, permissions, maps, and service
 
-- [ ] **A1 — Install/update:** Install `v0.1.3` on every phone. Updating `v0.1.1` or `v0.1.2` in place preserves the app and launches successfully.
+- [ ] **A1 — Install/update:** Install `v0.1.4` on every phone. Updating an earlier beta in place preserves the app and launches successfully. Confirm no older protocol-1 beta remains in the test group.
 - [ ] **A2 — Production endpoint:** Create a party over cellular with no development computer present. No error mentions `10.0.2.2` or cleartext HTTP.
 - [ ] **A3 — Map:** Satellite tiles load, the map centers near the phone after a fix, and pan/zoom remain responsive.
 - [ ] **A4 — Permissions:** Grant precise foreground location, background location, and notifications. Denying each permission produces a useful recovery message rather than a crash.
@@ -134,19 +138,26 @@ For the final locked-phone route, every phone needs at least 20 estimated moving
 
 Any hidden-coordinate or hidden-trap leak is an immediate release blocker. Capture screenshots from both roles and preserve the export.
 
-## F. Tag behavior
+## F. Automatic tag and Hidden Mode behavior
 
 Repeat the distance cases at least five times in open sky with both phones reporting competitive GPS:
 
-- [ ] **F1 — Outside radius:** At 8–10 m separation, TAG does not eliminate a hider.
-- [ ] **F2 — Inside radius:** At 3 m separation, TAG eliminates the hider.
-- [ ] **F3 — Threshold:** Test on both sides of the measured 6.096 m / 20 ft threshold and record GPS-reported positions and every result.
-- [ ] **F4 — Uncertain GPS:** If a nearby phone reports worse than 10 m accuracy, the server refuses to award an uncertain tag instead of guessing.
-- [ ] **F5 — Cooldown:** After a valid tag attempt with no target, another attempt within two seconds is rejected; a later attempt is allowed.
-- [ ] **F6 — Authority:** Hiders never receive an enabled tag action, and a non-seeker cannot tag.
-- [ ] **F7 — Nearest target:** With two hiders in range, the nearest hider is eliminated and the other remains active.
-- [ ] **F8 — Elimination:** The tagged phone is notified, stops sharing its position, and cannot continue using hider actions.
-- [ ] **F9 — Win:** Tagging the final active hider ends the match with a seeker win on every phone.
+- [ ] **F1 — Outside radius:** Keep a moving, non-hidden hider 8–10 m from the seeker. No automatic tag occurs.
+- [ ] **F2 — Moving inside radius:** Move a non-hidden hider within 3 m of the seeker for more than one continuously observed second. The hider is automatically tagged without either player touching the phone.
+- [ ] **F3 — Brief crossing:** Cross the radius for less than one second. A single proximity sample does not award an automatic tag.
+- [ ] **F4 — Threshold:** Repeat moving approaches on both sides of 6.096 m / 20 ft and record physical positions, reported positions, and every result.
+- [ ] **F5 — Uncertain GPS:** If either nearby phone reports worse than 10 m accuracy or a stale fix, the server refuses to award an automatic or manual tag instead of guessing.
+- [ ] **F6 — Hidden entry:** During the hiding countdown, hold the hider still with competitive GPS. The hider shows the countdown and becomes **HIDDEN** after about four continuously observed seconds.
+- [ ] **F7 — Hidden privacy:** The hider sees their own Hidden Mode state. The seeker receives no badge, countdown, transition event, or hidden-state field.
+- [ ] **F8 — Hidden immunity:** Approach a hidden hider and remain within 3 m for several seconds. No automatic tag occurs.
+- [ ] **F9 — Manual discovery:** While the hider remains hidden and physically visible to the seeker, tap **TAG** within range. The manual tag succeeds.
+- [ ] **F10 — GPS jitter:** Leave a hidden phone physically still for at least five minutes in open sky, then near a building. Accuracy-sized drift does not repeatedly reveal and re-hide the player.
+- [ ] **F11 — Movement exit:** From Hidden Mode, walk or run away. Sustained movement or at least 3 m of accuracy-adjusted displacement removes the **HIDDEN** state; re-entering proximity then permits auto-tag after a fresh one-second dwell.
+- [ ] **F12 — Observation reset:** Weak GPS, a location gap longer than four seconds, pause/resume, and reconnect each clear Hidden Mode and require a new four-second stationary observation.
+- [ ] **F13 — Manual cooldown and authority:** A failed manual TAG attempt enforces the two-second cooldown. Hiders never receive an enabled tag action, and a non-seeker cannot tag.
+- [ ] **F14 — Multiple targets:** With two non-hidden hiders in range, only the nearest qualifying hider is automatically eliminated per observation; the other remains active.
+- [ ] **F15 — Elimination feedback:** An automatic or manual tag produces **Tagged** exactly once for the seeker and tagged hider, stops the eliminated phone's location sharing, and disables hider actions.
+- [ ] **F16 — Win:** Tagging the final active hider ends the match with a seeker win on every phone.
 
 ## G. Radar behavior
 
