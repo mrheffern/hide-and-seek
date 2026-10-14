@@ -6,6 +6,13 @@ export function shouldTrackPlayer(snapshot: Pick<RoomSnapshot, "phase" | "selfId
     && snapshot.players.find((player) => player.id === snapshot.selfId)?.status === "active");
 }
 
+/** Diagnostics remain available to the host in every authoritative party phase. */
+export function canExportDiagnostics(
+  snapshot: Pick<RoomSnapshot, "phase" | "hostId" | "selfId"> | null,
+): boolean {
+  return Boolean(snapshot && snapshot.hostId === snapshot.selfId);
+}
+
 export function acceptsSnapshot(
   current: Pick<RoomSnapshot, "roomCode" | "selfId" | "version" | "serverNow"> | null,
   next: Pick<RoomSnapshot, "roomCode" | "selfId" | "version" | "serverNow">,

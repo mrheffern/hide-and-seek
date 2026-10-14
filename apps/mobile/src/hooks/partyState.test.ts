@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RoomSnapshot } from "@hide-and-seek/protocol";
-import { acceptsSnapshot, shouldTrackPlayer } from "./partyState";
+import { acceptsSnapshot, canExportDiagnostics, shouldTrackPlayer } from "./partyState";
 
 const session = { roomCode: "ABC123", playerId: "player-1" };
 const snapshot = { roomCode: "ABC123", selfId: "player-1", version: 50, serverNow: 5_000 };
@@ -45,5 +45,18 @@ describe("foreground location eligibility", () => {
 
   it("uses a one-shot readiness check instead of continuous tracking in the lobby", () => {
     expect(shouldTrackPlayer({ ...view, phase: "lobby" })).toBe(false);
+  });
+});
+
+describe("host diagnostics export eligibility", () => {
+  for (const phase of ["lobby", "hiding", "active", "paused", "finished"] as const) {
+    it(`allows the host to export during ${phase}`, () => {
+      expect(canExportDiagnostics({ phase, hostId: "host", selfId: "host" })).toBe(true);
+      expect(canExportDiagnostics({ phase, hostId: "host", selfId: "guest" })).toBe(false);
+    });
+  }
+
+  it("requires an authoritative snapshot", () => {
+    expect(canExportDiagnostics(null)).toBe(false);
   });
 });

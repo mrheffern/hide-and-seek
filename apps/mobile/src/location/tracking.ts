@@ -1,10 +1,10 @@
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
-import type { RoomSnapshot } from "@hide-and-seek/protocol";
+import type { PositionFix, RoomSnapshot } from "@hide-and-seek/protocol";
 import { LOCATION_TASK_NAME, resetLocationNotificationState } from "./backgroundLocation";
 import { recordDiagnostic, recordDiagnosticError } from "../diagnostics";
 import { uploadLocation } from "../api";
-import { readDeviceStatus } from "../deviceStatus";
+import { readDeviceStatus, resetDeviceStatusCache } from "../deviceStatus";
 import type { StoredSession } from "../session";
 
 export interface TrackingReadiness {
@@ -19,6 +19,8 @@ export interface LobbyLocationReadiness extends TrackingReadiness {
 let trackingQueue: Promise<unknown> = Promise.resolve();
 let trackingRevision = 0;
 let pendingStart: { revision: number; promise: Promise<TrackingReadiness> } | undefined;
+let recoverySequence = 0;
+const recoveryRuntimeId = `recovery-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 let lobbySequence = 0;
 const lobbyRuntimeId = `lobby-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 let lobbyTrackingRevision = 0;
@@ -38,7 +40,7 @@ function serializeTracking<T>(operation: () => Promise<T>): Promise<T> {
 export function startMatchTracking(): Promise<TrackingReadiness> {
   if (pendingStart?.revision === trackingRevision) return pendingStart.promise;
   const revision = ++trackingRevision;
-  const promise = serializeTracking(() => startTracking(revision));
+  const promise = serializeTracking(() => startTracking(revision, false));
   pendingStart = { revision, promise };
   void promise.finally(() => {
     if (pendingStart?.revision === revision) pendingStart = undefined;
@@ -46,7 +48,71 @@ export function startMatchTracking(): Promise<TrackingReadiness> {
   return promise;
 }
 
-async function startTracking(revision: number): Promise<TrackingReadiness> {
+/**
+ * Recreate the native stream after connectivity returns, then prove recovery with
+ * a newly sampled position. A registered Android service is not necessarily a
+ * healthy uploader after a radio handoff, so recovery deliberately restarts it.
+ */
+export function recoverMatchTracking(session: StoredSession): Promise<TrackingReadiness> {
+  const revision = ++trackingRevision;
+  return serializeTracking(async () => {
+    recordDiagnostic({ category: "location", name: "tracking_recovery_started" });
+    const tracking = await startTracking(revision, true);
+    if (!tracking.ready || revision !== trackingRevision) return tracking;
+    try {
+      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      if (revision !== trackingRevision) {
+        return { ready: false, message: "Location recovery was superseded." };
+      }
+      const now = Date.now();
+      recoverySequence += 1;
+      const fix = positionFix(
+        location,
+        `${session.locationSessionId}-${recoveryRuntimeId}`.slice(0, 100),
+        recoverySequence,
+        now,
+      );
+      resetDeviceStatusCache();
+      const result = await uploadLocation(session, fix, await readDeviceStatus(now));
+      recordDiagnostic({
+        category: "location",
+        name: "tracking_recovery_succeeded",
+        correlationId: `${fix.sessionId}:${fix.sequence}`,
+        payload: {
+          accuracyMeters: fix.accuracyMeters,
+          gpsStatus: result.snapshot.players.find((player) => player.id === result.snapshot.selfId)?.gpsStatus,
+        },
+      });
+      return { ready: true, message: "GPS connection restored." };
+    } catch (error) {
+      recordDiagnosticError("location", "tracking_recovery_probe_failed", error);
+      return { ready: false, message: "GPS recovery is still retrying. Keep the app open briefly." };
+    }
+  });
+}
+
+function positionFix(
+  location: Location.LocationObject,
+  sessionId: string,
+  sequence: number,
+  now: number,
+): PositionFix {
+  return {
+    latitude: location.coords.latitude,
+    longitude: location.coords.longitude,
+    accuracyMeters: Math.max(0, location.coords.accuracy ?? 9_999),
+    speedMetersPerSecond:
+      typeof location.coords.speed === "number" && Number.isFinite(location.coords.speed) && location.coords.speed >= 0
+        ? location.coords.speed
+        : undefined,
+    sampledAtMs: location.timestamp,
+    sampleAgeMs: Math.max(0, now - location.timestamp),
+    sequence,
+    sessionId,
+  };
+}
+
+async function startTracking(revision: number, forceRestart: boolean): Promise<TrackingReadiness> {
   const cancelled = () => revision !== trackingRevision;
   const superseded = { ready: false, message: "Location tracking request was superseded." };
   if (cancelled()) return superseded;
@@ -84,10 +150,16 @@ async function startTracking(revision: number): Promise<TrackingReadiness> {
     if (cancelled()) return superseded;
     // Android can visibly tear down and recreate its foreground location service when
     // startLocationUpdatesAsync is called again. Keep the existing service if it is live.
-    if (await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME)) {
+    const alreadyStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+    if (alreadyStarted && !forceRestart) {
       if (cancelled()) return superseded;
       recordDiagnostic({ category: "location", name: "tracking_already_started" });
       return { ready: true, message: "Live location ready." };
+    }
+    if (alreadyStarted) {
+      await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+      if (cancelled()) return superseded;
+      recordDiagnostic({ category: "location", name: "tracking_recovery_service_stopped" });
     }
     if (cancelled()) return superseded;
     await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
@@ -168,19 +240,16 @@ export function refreshLobbyLocation(session: StoredSession): Promise<LobbyLocat
           if (!isCurrent()) return;
           const now = Date.now();
           lobbySequence += 1;
-          const result = await uploadLocation(session, {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-            accuracyMeters: Math.max(0, location.coords.accuracy ?? 9_999),
-            speedMetersPerSecond:
-              typeof location.coords.speed === "number" && Number.isFinite(location.coords.speed) && location.coords.speed >= 0
-                ? location.coords.speed
-                : undefined,
-            sampledAtMs: location.timestamp,
-            sampleAgeMs: Math.max(0, now - location.timestamp),
-            sequence: lobbySequence,
-            sessionId: `${session.locationSessionId}-${lobbyRuntimeId}`.slice(0, 100),
-          }, await readDeviceStatus(now));
+          const result = await uploadLocation(
+            session,
+            positionFix(
+              location,
+              `${session.locationSessionId}-${lobbyRuntimeId}`.slice(0, 100),
+              lobbySequence,
+              now,
+            ),
+            await readDeviceStatus(now),
+          );
           recordDiagnostic({
             level: "debug",
             category: "location",

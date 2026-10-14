@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
+import * as Network from "expo-network";
 import type { GameCommand, RoomSnapshot, SessionResponse } from "@hide-and-seek/protocol";
 import { ApiRequestError, createParty, fetchSnapshot, joinParty, sendCommand, socketUrl } from "../api";
 import { GAME_API_URL } from "../config";
 import {
   refreshLobbyLocation,
+  recoverMatchTracking,
   startMatchTracking,
   stopMatchBackgroundTracking,
   stopMatchTracking,
@@ -26,9 +28,10 @@ import {
 } from "../diagnostics";
 import { exportDiagnostics as exportDiagnosticsFile } from "../diagnostics/export";
 import { leavePartySession } from "./leaveParty";
-import { acceptsSnapshot, shouldTrackPlayer } from "./partyState";
+import { acceptsSnapshot, canExportDiagnostics, shouldTrackPlayer } from "./partyState";
 import { consumeGameplaySoundCues } from "../audio/gameplaySoundEvents";
 import { playGameplaySound } from "../audio/gameplayAudio";
+import { observeReachability } from "../network/recovery";
 
 function toStoredSession(response: SessionResponse): StoredSession {
   return {
@@ -170,6 +173,9 @@ export function useParty() {
     let attempt = 0;
     let closed = false;
     let refreshing = false;
+    let networkWasUnavailable = false;
+    let locationRecovery: Promise<void> | undefined;
+    let lastLocationRecoveryAt = 0;
     const isCurrent = () => !closed && mounted.current && activeSession.current === session;
     const refresh = async () => {
       if (!isCurrent() || refreshing) return;
@@ -202,6 +208,28 @@ export function useParty() {
         connect();
       }, delay);
     };
+    const recoverLocation = (reason: "network_restored" | "websocket_reconnected" | "foreground_stale" | "watchdog_stale") => {
+      if (!isCurrent() || !shouldTrackPlayer(latestSnapshot.current) || locationRecovery) return;
+      const now = Date.now();
+      if (now - lastLocationRecoveryAt < 5_000) return;
+      lastLocationRecoveryAt = now;
+      recordDiagnostic({ category: "location", name: "tracking_recovery_requested", payload: { reason } });
+      const recovery = recoverMatchTracking(session)
+        .then((result) => {
+          if (!isCurrent()) return;
+          setStatus(result.message);
+          if (result.ready) void refresh();
+        })
+        .catch((error) => {
+          if (!isCurrent()) return;
+          recordDiagnosticError("location", "tracking_recovery_failed", error, { reason });
+          setStatus("GPS recovery is still retrying. Keep the app open briefly.");
+        })
+        .finally(() => {
+          if (locationRecovery === recovery) locationRecovery = undefined;
+        });
+      locationRecovery = recovery;
+    };
     const connect = () => {
       if (!isCurrent() || socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) return;
       setConnectionState(attempt ? "retrying" : "connecting");
@@ -210,11 +238,13 @@ export function useParty() {
       socket = current;
       current.onopen = () => {
         if (!isCurrent() || socket !== current) return;
+        const reconnected = attempt > 0;
         attempt = 0;
         setConnectionState("live");
         recordDiagnostic({ category: "realtime", name: "websocket_opened" });
         void flushDiagnostics(session, true);
         void refresh();
+        if (reconnected) recoverLocation("websocket_reconnected");
       };
       current.onmessage = (event) => {
         if (!isCurrent() || socket !== current) return;
@@ -245,14 +275,33 @@ export function useParty() {
       // Finished and eliminated players no longer have GPS uploads to flush their diagnostics.
       void flushDiagnostics(session);
       if (socket?.readyState !== WebSocket.OPEN) void refresh();
+      const self = latestSnapshot.current?.players.find((player) => player.id === latestSnapshot.current?.selfId);
+      if (self?.gpsStatus === "stale" || self?.gpsStatus === "missing") recoverLocation("watchdog_stale");
     }, 30_000);
+    const networkState = Network.addNetworkStateListener((next) => {
+      if (!isCurrent()) return;
+      recordDiagnostic({
+        level: "debug",
+        category: "network",
+        name: "network_state_changed",
+        payload: { type: next.type, isConnected: next.isConnected, isInternetReachable: next.isInternetReachable },
+      });
+      const observation = observeReachability(networkWasUnavailable, next);
+      networkWasUnavailable = observation.wasUnavailable;
+      if (observation.recovered) recoverLocation("network_restored");
+    });
     const appState = AppState.addEventListener("change", (nextState) => {
       recordDiagnostic({ category: "lifecycle", name: "app_state_changed", payload: { nextState } });
       if (nextState !== "active" || !isCurrent()) return;
       if (shouldTrackPlayer(latestSnapshot.current)) {
-        void startMatchTracking().then((result) => {
-          if (isCurrent() && shouldTrackPlayer(latestSnapshot.current) && !result.ready) setStatus(result.message);
-        });
+        const self = latestSnapshot.current?.players.find((player) => player.id === latestSnapshot.current?.selfId);
+        if (self?.gpsStatus === "stale" || self?.gpsStatus === "missing") {
+          recoverLocation("foreground_stale");
+        } else {
+          void startMatchTracking().then((result) => {
+            if (isCurrent() && shouldTrackPlayer(latestSnapshot.current) && !result.ready) setStatus(result.message);
+          });
+        }
       } else if (latestSnapshot.current?.phase === "lobby"
         && latestSnapshot.current.players.find((player) => player.id === latestSnapshot.current?.selfId)?.status === "active"
         && !latestSnapshot.current.players.find((player) => player.id === latestSnapshot.current?.selfId)?.gpsReady) {
@@ -279,6 +328,7 @@ export function useParty() {
       if (retry) clearTimeout(retry);
       if (fallback) clearInterval(fallback);
       appState.remove();
+      networkState.remove();
       socket?.close();
     };
   }, [applySnapshot, clearLocalParty, session]);
@@ -428,18 +478,18 @@ export function useParty() {
   }, [clearLocalParty, session]);
 
   const exportDiagnostics = useCallback(async () => {
-    if (!session || activeSession.current !== session || !snapshot || snapshot.hostId !== snapshot.selfId
-      || (snapshot.phase !== "lobby" && snapshot.phase !== "finished")) return;
+    const exportSnapshot = snapshot;
+    if (!session || activeSession.current !== session || !exportSnapshot || !canExportDiagnostics(exportSnapshot)) return;
     setExportingDiagnostics(true);
     try {
-      const result = await exportDiagnosticsFile(session, snapshot.matchId);
+      const result = await exportDiagnosticsFile(session, exportSnapshot.matchId);
       if (mounted.current && activeSession.current === session) {
         setStatus(result.disposition === "saved"
           ? `Saved ${result.count} diagnostic events as ${result.fileName}.`
           : `Prepared ${result.count} diagnostic events. Use the system sheet to save or share ${result.fileName}.`);
       }
     } catch (error) {
-      recordDiagnosticError("diagnostics", "export_failed", error, { matchId: snapshot.matchId });
+      recordDiagnosticError("diagnostics", "export_failed", error, { matchId: exportSnapshot.matchId });
       if (mounted.current && activeSession.current === session) setStatus(error instanceof Error ? error.message : "Diagnostics export failed.");
     } finally {
       setExportingDiagnostics(false);

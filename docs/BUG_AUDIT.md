@@ -68,3 +68,11 @@ The first outdoor two-phone run exposed several client presentation and recovery
 - Android diagnostic export now prompts for a durable folder, starting at Downloads, and iOS exposes Save to Files through the native sheet. Android falls back to sharing if folder selection is cancelled.
 
 These items remain subject to exact-scenario retesting on the affected phones before the physical-core gate can pass.
+
+## Network-recovery follow-up — 2026-10-14
+
+An Android phone that temporarily lost cellular service could reconnect its party WebSocket while its server-side GPS health remained stale. Failed location requests relied entirely on a later native callback, and foreground recovery trusted Android's registered-service flag without proving that the service was uploading.
+
+The mobile client now watches for an offline-to-online transition, reconnects with a fresh native location-service registration, and immediately uploads a newly sampled fix. A WebSocket reconnect, a stale foreground return, and a 30-second stale-health watchdog provide additional recovery paths. Old positions are never replayed. Recovery attempts and results are included in diagnostics.
+
+The host diagnostics control is no longer limited to the lobby and finished screen. It is available in lobby, hiding, active, paused, and finished phases so a failed match can be exported before it is resumed, reset, or formally completed. Non-hosts remain unable to export party diagnostics.

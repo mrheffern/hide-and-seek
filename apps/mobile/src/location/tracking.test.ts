@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   removeWatcher: vi.fn(),
   uploadLocation: vi.fn(),
   deviceStatus: vi.fn(),
+  resetDeviceStatus: vi.fn(),
   notificationChannel: vi.fn(),
   notificationPermission: vi.fn(),
   resetNotifications: vi.fn(),
@@ -49,10 +50,14 @@ vi.mock("../diagnostics", () => ({
 }));
 
 vi.mock("../api", () => ({ uploadLocation: mocks.uploadLocation }));
-vi.mock("../deviceStatus", () => ({ readDeviceStatus: mocks.deviceStatus }));
+vi.mock("../deviceStatus", () => ({
+  readDeviceStatus: mocks.deviceStatus,
+  resetDeviceStatusCache: mocks.resetDeviceStatus,
+}));
 
 import {
   refreshLobbyLocation,
+  recoverMatchTracking,
   startMatchTracking,
   stopMatchBackgroundTracking,
   stopMatchTracking,
@@ -148,6 +153,48 @@ describe("locked-phone location tracking", () => {
     mocks.updatesStarted.mockResolvedValue(true);
     await expect(startMatchTracking()).resolves.toMatchObject({ ready: true });
     expect(mocks.startUpdates).not.toHaveBeenCalled();
+  });
+
+  it("restarts a nominally running service and uploads a fresh fix during recovery", async () => {
+    mocks.updatesStarted.mockResolvedValue(true);
+    mocks.currentPosition.mockResolvedValue({
+      timestamp: 10_000,
+      coords: { latitude: 34.1, longitude: -118.2, accuracy: 5, speed: 1.25 },
+    });
+
+    await expect(recoverMatchTracking(session)).resolves.toEqual({
+      ready: true,
+      message: "GPS connection restored.",
+    });
+
+    expect(mocks.stopUpdates).toHaveBeenCalledWith("hide-and-seek-active-match-location");
+    expect(mocks.startUpdates).toHaveBeenCalledOnce();
+    expect(mocks.currentPosition).toHaveBeenCalledWith({ accuracy: "high" });
+    expect(mocks.resetDeviceStatus).toHaveBeenCalledOnce();
+    expect(mocks.uploadLocation).toHaveBeenCalledWith(
+      session,
+      expect.objectContaining({
+        latitude: 34.1,
+        longitude: -118.2,
+        accuracyMeters: 5,
+        speedMetersPerSecond: 1.25,
+        sessionId: expect.stringContaining("location-session-recovery-"),
+      }),
+      { networkType: "wifi" },
+    );
+  });
+
+  it("leaves the restarted stream running when the immediate recovery probe fails", async () => {
+    mocks.updatesStarted.mockResolvedValue(true);
+    mocks.uploadLocation.mockRejectedValue(new Error("still offline"));
+
+    await expect(recoverMatchTracking(session)).resolves.toEqual({
+      ready: false,
+      message: "GPS recovery is still retrying. Keep the app open briefly.",
+    });
+
+    expect(mocks.stopUpdates).toHaveBeenCalledOnce();
+    expect(mocks.startUpdates).toHaveBeenCalledOnce();
   });
 
   it("keeps a foreground lobby watch running until the server verifies sustained GPS", async () => {

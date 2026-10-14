@@ -595,6 +595,38 @@ Running encounters can resolve without screen interaction, while a stationary hi
 - `apps/mobile/src/location/`
 - `apps/mobile/App.tsx`
 
+## DEC-021 — Proactive location recovery and in-match evidence access
+
+**Status:** Accepted
+
+**Date:** 2026-10-14
+
+### Context
+
+A field phone recovered cellular service and its party WebSocket, but the server continued to classify its GPS as stale. The client discarded failed uploads and assumed a later native callback would recover them. Android could still report its location service as registered even when the stream was no longer proving successful uploads. The host also could not export diagnostics from an active or paused match, which made the failure harder to preserve.
+
+### Decision
+
+- Treat party connectivity and GPS-upload health as separate concerns.
+- After a known offline-to-online transition, recreate the active native location stream and immediately upload a newly sampled fix. Never queue or replay an old position.
+- Use WebSocket reconnection, a foreground return with stale GPS, and a throttled 30-second stale-health watchdog as additional recovery triggers.
+- Keep server safety rules unchanged: a recovered match remains paused until every active player has a current precise fix and the host resumes it.
+- Allow only the current host to export diagnostics, but make the control available in every authoritative party phase: lobby, hiding, active, paused, and finished.
+
+### Consequences
+
+Temporary coverage loss should recover without leaving or rejoining, while the server continues to reject stale positions and pause unsafe play. Restarting Android's foreground location service may briefly refresh its persistent notification, but only after a recovery trigger and no more than once every five seconds. A host can preserve evidence immediately instead of first completing or resetting a failed match.
+
+### Implementation
+
+- `apps/mobile/src/location/tracking.ts`
+- `apps/mobile/src/network/recovery.ts`
+- `apps/mobile/src/hooks/useParty.ts`
+- `apps/mobile/src/hooks/partyState.ts`
+- `apps/mobile/App.tsx`
+- `docs/GAMEPLAY_TEST_CHECKLIST.md`
+- `docs/FIELD_TEST.md`
+
 ## New decision template
 
 Copy this section to the end of the log and replace the placeholders.

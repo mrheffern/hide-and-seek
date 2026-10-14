@@ -16,7 +16,7 @@ Do not move on while any must-pass item is failing or untested:
 - [ ] Four seconds of observed stillness reliably blocks only automatic tags, and credible movement reliably restores them without GPS-jitter flicker.
 - [ ] Near buildings and trees, weak GPS causes a safe refusal or pause rather than a false game outcome.
 - [ ] Every test phone keeps uploading usable locations for 30–60 minutes while locked and carried normally.
-- [ ] A network loss and app reopen recover the same party and authoritative match state without rejoining.
+- [ ] A network loss and app reopen recover the same party, authoritative match state, and fresh GPS uploads without rejoining.
 - [ ] Spoken tag and trap cues reach exactly the involved phones in foreground and locked-screen tests without duplicate or stale playback.
 - [ ] Every completed match produces a diagnostics export with all players represented and no unexplained event gaps.
 - [ ] Every blocker found during testing is fixed and the failed scenario is rerun on the affected devices.
@@ -204,12 +204,13 @@ Two proposed balance rules in `ARCHITECTURE.md` are not currently enforced by th
 
 - [ ] **J1 — Manual pause:** Only the host can pause. All phones show the paused phase, and match/radar/trap timers stop advancing.
 - [ ] **J2 — Resume readiness:** Resume is blocked until every active player has a fresh, precise location; once ready, only the host can resume.
-- [ ] **J3 — Short network loss:** Disable one phone's network briefly, restore it, and confirm the badge moves from Reconnecting to Live with the same party and state.
+- [ ] **J3 — Short network loss:** Disable one phone's network briefly, restore it, and confirm the badge moves from Reconnecting to Live with the same party and state. Its GPS must move from Stale to Live using new fixes without leaving or rejoining.
 - [ ] **J4 — Automatic pause:** Keep an active player's location unavailable for more than 10 seconds. The server pauses before applying later round outcomes.
 - [ ] **J5 — Reopen:** During a controlled outage, close and reopen the app without tapping Leave. It restores the session and catches up to the authoritative phase.
 - [ ] **J6 — Locked screen:** Lock every phone for at least five minutes during active play. Location uploads and relevant trap/boundary notifications continue.
 - [ ] **J7 — Process recovery:** After Android removes the app from memory naturally, reopening restores the saved party. Record separately if the tester force-stopped the app, because Android intentionally disables background work after a force stop.
 - [ ] **J8 — No duplicate state:** Reconnects never roll the UI back to an older phase, revive an eliminated player, duplicate a trap, or repeat a consumed action.
+- [ ] **J9 — Host evidence access:** During lobby, hiding, active play, and pause, only the host sees **Export party/match diagnostics** and can save an export without ending or resetting the match. Confirm it remains available on the finished screen too.
 
 ## K. Match completion, rematch, and leave behavior
 
@@ -225,7 +226,7 @@ Two proposed balance rules in `ARCHITECTURE.md` are not currently enforced by th
 At the end of each match:
 
 1. Bring every phone online and open the app long enough to show **Live**. Wait at least 30 seconds so each client's periodic diagnostics upload has an opportunity to run.
-2. On the finished screen, the host taps **Export match diagnostics** before **Return to lobby**. The app flushes the host's local queue and downloads the server's match timeline. On Android, choose a private test folder such as Downloads in the system folder picker; on iOS, choose **Save to Files** in the native sheet.
+2. The host may tap **Export match diagnostics** during any match phase when a failure occurs, or on the finished screen before **Return to lobby**. The app flushes the host's local queue and downloads the server's match timeline. On Android, choose a private test folder such as Downloads in the system folder picker; on iOS, choose **Save to Files** in the native sheet.
 3. Confirm the JSON remains in that folder after closing the app. Do not post it publicly: it contains player names and precise movement history.
 4. Run the coordinate-free summary:
 

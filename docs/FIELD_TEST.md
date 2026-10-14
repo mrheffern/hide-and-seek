@@ -31,13 +31,13 @@ Run this smoke checklist once before beginning the longer locked-phone route. Co
 - Start the match and verify the hide countdown and active phase agree on both phones.
 - Lock each phone for at least five minutes while walking. Confirm Android keeps the location foreground-service notification visible and the server continues receiving timely fixes.
 - Unlock and verify current state, locations permitted for each role, timers, and connection health recover without rejoining.
-- Briefly disable networking on one phone, restore it, and confirm the connection changes from Reconnecting to Live without losing the party.
+- Briefly disable networking on one phone, restore it, and confirm the connection changes from Reconnecting to Live without losing the party. Confirm that phone's GPS changes from Stale to Live using a newly sampled fix without leaving or rejoining.
 - Place a bear trap and confirm placement is silent. Trigger it and confirm only the locked or foregrounded seeker hears **Caught in bear trap**.
 - Complete a tag and confirm both the seeker and tagged hider hear **Tagged** once. Repeat across runs with the affected phone locked and foregrounded.
 - Repeat the tag once while the hider is moving and non-hidden; confirm it resolves automatically after sustained proximity without a button press.
 - Hold the hider still for four seconds until **HIDDEN** appears. Confirm proximity alone no longer tags them, manual **TAG** still works after physical discovery, and walking away clears **HIDDEN** before the next automatic tag.
 - Finish the round and confirm both phones reach the game-over state.
-- Export match diagnostics before returning to the lobby. Save it to Downloads on Android or Files on iOS, close the app, confirm the JSON remains available, and attach it to the test notes.
+- As host, confirm **Export match diagnostics** remains available during active play and pause so failures can be captured immediately. Export again before returning to the lobby, save it to Downloads on Android or Files on iOS, close the app, confirm the JSON remains available, and attach it to the test notes.
 
 ## Route
 
@@ -49,7 +49,7 @@ Repeat approaches to marked physical points at 3, 6, 10, and 20 meters. Cross th
 
 ## Capture
 
-Before beginning, agree on the beta player names that will identify each tester in the timeline. At the end of every match, the host must tap **Export match diagnostics** on the game-over screen before returning to the lobby and save the JSON file with the test notes.
+Before beginning, agree on the beta player names that will identify each tester in the timeline. If a failure occurs, the host can export immediately from the current match screen. At the end of every match, the host must also tap **Export match diagnostics** on the game-over screen before returning to the lobby and save the JSON file with the test notes.
 
 - Server receipt interval and GPS sample age
 - Reported horizontal accuracy

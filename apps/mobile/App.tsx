@@ -709,7 +709,7 @@ function Game({
         {isHost && snapshot.phase === "paused" ? (
           <ActionButton label="Resume match" onPress={() => command({ type: "resume_match" })} />
         ) : null}
-        {isHost && snapshot.phase === "lobby" ? (
+        {isHost ? (
           <ActionButton
             disabled={exportingDiagnostics}
             label={exportingDiagnostics ? "Preparing diagnostics…" : snapshot.matchId ? "Export match diagnostics" : "Export party diagnostics"}
