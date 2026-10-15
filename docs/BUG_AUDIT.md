@@ -76,3 +76,9 @@ An Android phone that temporarily lost cellular service could reconnect its part
 The mobile client now watches for an offline-to-online transition, reconnects with a fresh native location-service registration, and immediately uploads a newly sampled fix. A WebSocket reconnect, a stale foreground return, and a 30-second stale-health watchdog provide additional recovery paths. Old positions are never replayed. Recovery attempts and results are included in diagnostics.
 
 The host diagnostics control is no longer limited to the lobby and finished screen. It is available in lobby, hiding, active, paused, and finished phases so a failed match can be exported before it is resumed, reset, or formally completed. Non-hosts remain unable to export party diagnostics.
+
+## Match-start GPS integrity follow-up — 2026-10-15
+
+The first v0.1.4 field export showed that lobby GPS readiness remained latched after the underlying positions became stale. The server could therefore accept **Start** and immediately pause the new match while waiting for reconnects. A newly registered background location session could also deliver an older buffered observation and temporarily replace a newer position.
+
+The server now requires each player to have both completed lobby verification and have a currently fresh, competitively precise fix before starting. A failed attempt requests fresh GPS from the lobby clients and leaves the party in the lobby. It also compares observation time across location-session changes and rejects a delayed fix when a newer observation is already authoritative. Both cases have game-rule regression tests and are included in v0.1.5.

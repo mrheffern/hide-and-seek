@@ -87,7 +87,7 @@ Run the measured-distance mechanics in open sky first. Repeat them near a buildi
 
 ## A. Install, permissions, maps, and service
 
-- [ ] **A1 — Install/update:** Install `v0.1.4` on every phone. Updating an earlier beta in place preserves the app and launches successfully. Confirm no older protocol-1 beta remains in the test group.
+- [ ] **A1 — Install/update:** Install `v0.1.5` on every phone. Updating an earlier beta in place preserves the app and launches successfully. Confirm no older protocol-1 beta remains in the test group.
 - [ ] **A2 — Production endpoint:** Create a party over cellular with no development computer present. No error mentions `10.0.2.2` or cleartext HTTP.
 - [ ] **A3 — Map:** Satellite tiles load, the map centers near the phone after a fix, and pan/zoom remain responsive.
 - [ ] **A4 — Permissions:** Grant precise foreground location, background location, and notifications. Denying each permission produces a useful recovery message rather than a crash.

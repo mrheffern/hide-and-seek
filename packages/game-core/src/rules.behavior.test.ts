@@ -187,6 +187,21 @@ describe("match setup and authority", () => {
     expect(status()).toMatchObject({ gpsStatus: "stale", gpsReady: true });
   });
 
+  it("requires a current precise fix after lobby GPS readiness was latched", () => {
+    const game = setup();
+    expect(game.command("host", { type: "set_boundary", boundary }).ok).toBe(true);
+    expect(game.command("host", { type: "set_seeker", playerId: "seeker" }).ok).toBe(true);
+    game.verifyLobbyGps();
+
+    game.tick(game.state.rules.maxFixAgeMs + 1);
+    expect(game.command("host", { type: "start_match" })).toMatchObject({
+      ok: false,
+      code: "players_not_ready",
+    });
+    expect(game.state.phase).toBe("lobby");
+    expect(game.state.events.at(-1)?.type).toBe("gps_check_requested");
+  });
+
   it("requires at least two players", () => {
     let nextId = 0;
     const context = (): RuleContext => ({ now: 100, id: () => `single-${++nextId}` });
@@ -904,6 +919,33 @@ describe("location stream integrity", () => {
     );
     expect(game.location("host", point(1), { sequence: 1, sessionId: "second-session" }).ok).toBe(true);
     expect(game.state.players.host.latestFix?.sessionId).toBe("second-session");
+  });
+
+  it("does not let a delayed fix from a new session replace a newer position", () => {
+    const game = setup();
+    expect(game.location("host", point(0), { sequence: 5, sessionId: "first-session" }).ok).toBe(true);
+    game.tick(1_000);
+
+    expect(game.location("host", point(10), {
+      sampleAgeMs: 2_000,
+      sequence: 1,
+      sessionId: "second-session",
+    }).code).toBe("out_of_order_location");
+    expect(game.state.players.host.latestFix).toMatchObject({
+      sessionId: "first-session",
+      sequence: 5,
+      ...point(0),
+    });
+
+    expect(game.location("host", point(1), {
+      sequence: 2,
+      sessionId: "second-session",
+    }).ok).toBe(true);
+    expect(game.state.players.host.latestFix).toMatchObject({
+      sessionId: "second-session",
+      sequence: 2,
+      ...point(1),
+    });
   });
 
   it("stops retaining location after the match finishes", () => {

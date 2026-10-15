@@ -4,10 +4,10 @@ This is the location-quality portion of the release gate for the automatic tag a
 
 ## Setup
 
-### v0.1.4 production-path test
+### v0.1.5 production-path test
 
 1. Use at least two physical Android phones. Include a Pixel and a Samsung-class device when available.
-2. Install [`out-of-sight-v0.1.4.apk`](https://github.com/mrheffern/hide-and-seek/releases/download/v0.1.4/out-of-sight-v0.1.4.apk) on every phone. Confirm the installed version is `0.1.4`; updating an earlier beta in place is expected to work. This release uses game protocol 2, so older betas cannot participate in the same party.
+2. Install [`out-of-sight-v0.1.5.apk`](https://github.com/mrheffern/hide-and-seek/releases/download/v0.1.5/out-of-sight-v0.1.5.apk) on every phone. Confirm the installed version is `0.1.5`; updating an earlier beta in place is expected to work. This release uses game protocol 2, so older protocol-1 betas cannot participate in the same party.
 3. Open the app and grant precise location, background location, and notification permissions when requested. Do not use Expo Go for background-location testing.
 4. Confirm satellite map tiles load and the app does not report a request to `10.0.2.2`. The production APK must use the deployed HTTPS Worker without a development computer on the network.
 5. Record each phone's model, Android version, battery restrictions, network, and starting battery level in the test notes.

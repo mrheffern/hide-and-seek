@@ -398,7 +398,7 @@ function startMatch(state: RoomState, actorId: string, context: RuleContext): Ru
     return fail("seeker_required", "Select exactly one seeker.");
   }
   for (const player of players) {
-    const fix = player.latestFix;
+    const fix = usableFix(state, player, context.now);
     if (player.lobbyGpsVerifiedAt === undefined || !fix) {
       // Wake every unverified lobby client so it can keep a foreground GPS watch
       // running until the server observes a sustained precise signal.
@@ -407,7 +407,7 @@ function startMatch(state: RoomState, actorId: string, context: RuleContext): Ru
         actorId,
         message: "Refreshing every player's GPS before the match starts.",
       });
-      return fail("players_not_ready", `${player.name} needs to verify GPS before starting.`);
+      return fail("players_not_ready", `${player.name} needs a recent precise location before starting.`);
     }
     if (!pointInPolygon(fix, state.boundary)) {
       return fail("players_outside_boundary", `${player.name} must enter the boundary before starting.`);
@@ -1012,6 +1012,17 @@ export function acceptLocation(
   const previous = player.latestFix;
   if (previous?.sessionId === fix.sessionId && fix.sequence <= previous.sequence) {
     return fail("replayed_location", "Location sample was already processed.");
+  }
+  const observedAt = context.now - fix.sampleAgeMs;
+  const previousObservedAt = previous
+    ? previous.receivedAtMs - previous.sampleAgeMs
+    : undefined;
+  if (
+    previousObservedAt !== undefined &&
+    previous?.sessionId !== fix.sessionId &&
+    observedAt < previousObservedAt
+  ) {
+    return fail("out_of_order_location", "A newer location sample was already processed.");
   }
   updateLobbyGpsVerification(state, player, previous, fix, context);
   player.latestFix = { ...fix, receivedAtMs: context.now };
