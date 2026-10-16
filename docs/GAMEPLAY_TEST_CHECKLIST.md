@@ -260,6 +260,21 @@ These checks cover the bundled media cues retained in `v0.1.3`. The app does not
 - [ ] **M8 — No replay:** Reconnect or reopen immediately after an event and confirm repeated snapshots do not replay the cue. Reopening later must not play an old event.
 - [ ] **M9 — Evidence:** The diagnostics export contains `audio/gameplay_sound_started`, or `audio/gameplay_sound_failed` if playback failed, correlated to the authoritative event ID on each intended phone.
 
+## N. Hider jogging limit — planned, not in v0.1.5
+
+Do not run these as current-build acceptance checks. Use them after DEC-022 is implemented and the first experimental threshold is selected. Include hiders and seekers with meaningfully different running ability.
+
+- [ ] **N1 — Ordinary relocation:** A hider jogging below the configured limit can change hiding places without warning or penalty.
+- [ ] **N2 — Brief burst:** A short acceleration, direction change, or isolated high native-speed sample does not count as sustained sprinting.
+- [ ] **N3 — Sustained sprint:** A hider who remains clearly above the limit across the configured rolling window receives the intended audio and vibration warning.
+- [ ] **N4 — Compliance:** Slowing below the limit after a warning clears accumulated violation state without a later surprise penalty.
+- [ ] **N5 — Continued violation:** Continuing to sprint after the full warning and grace sequence produces the configured tag or disqualification exactly once on every phone.
+- [ ] **N6 — Seeker exemption:** The seeker can sprint through the same route without a speed warning or penalty.
+- [ ] **N7 — GPS uncertainty:** Weak accuracy, stale samples, a network gap, OS batching, and building-edge multipath pause or reset evaluation rather than producing a violation.
+- [ ] **N8 — Strategic escape:** With an initial lead, a hider may jog around cover, stop, regain Hidden Mode, and avoid automatic tagging; continuing across an open field eventually favors the seeker.
+- [ ] **N9 — Locked-phone feedback:** Warning and penalty cues work with the hider's phone locked and do not require screen interaction while moving.
+- [ ] **N10 — Evidence:** Diagnostics identify the observation window, qualified fixes, estimated speed or displacement, uncertainty handling, warnings, resets, and final outcome without relying on a single native speed reading.
+
 ## Failure handling
 
 - Stop the run immediately for a crash, privacy leak, false elimination, or unsafe distraction.

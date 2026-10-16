@@ -141,6 +141,14 @@ The seeker retains the manual **TAG** button for a stationary hider they physica
 
 For uncertain GPS, refuse both automatic and manual outcomes rather than inventing precision. Automatic and manual success produce the same authoritative tag event, audio, elimination, and win handling, with the tag method retained in diagnostics.
 
+### Hider movement limit
+
+The accepted gameplay direction is asymmetric: hiders may relocate at a controlled jog, but may not use sustained sprinting to make themselves physically uncatchable; seekers have no speed limit. An open-field pursuit should therefore converge in the seeker's favor. A successful hider escape should use an existing lead and environmental cover to break sight, turn a corner, stop, and re-enter Hidden Mode—not continue as an indefinite footrace.
+
+Enforcement must be server-authoritative and based on sustained, quality-qualified movement rather than one native speed value or one pair of GPS fixes. Use a rolling observation window, current precise samples, accuracy-adjusted displacement, and observation-gap resets. A brief acceleration, GPS spike, weak fix, stale fix, or safe evasive maneuver must not create a penalty. Feedback should be audible and vibratory so a moving player does not have to watch the phone.
+
+The exact jogging threshold, averaging window, warning period, phases in which the limit applies, and escalation ending in removal from play remain experimental. Record warnings and supporting fixes in diagnostics, field-test around buildings as well as in open sky, and freeze the chosen values into the round ruleset. This rule is accepted product direction but is not implemented in the current beta.
+
 ### Radar
 
 On an accepted use, persist `radarEndsAt = serverNow + 3 seconds` and `nextRadarAt = serverNow + 300 seconds`. Proposed rule: radar is ready at the beginning of the active phase. While the window is active, send fresh hider fixes to the seeker; mark unavailable fixes as unavailable without substituting old positions. Stop sending and remove pins at expiry, including after reconnect.
@@ -271,6 +279,6 @@ Avoid buying paid map, analytics, SMS, voice, or database subscriptions before f
 
 ## Decisions to carry into implementation
 
-Committed requirements: shared Android/iPhone codebase; locked-phone play; server-hidden hider locations and Hidden Mode state; host-drawn boundary; automatic moving-player tags plus manual physical-discovery tags; three-second radar with five-minute cooldown; 20-foot-radius trap with 15-second dwell lock.
+Committed requirements: shared Android/iPhone codebase; locked-phone play; server-hidden hider locations and Hidden Mode state; host-drawn boundary; automatic moving-player tags plus manual physical-discovery tags; a server-authoritative hider jogging limit with unrestricted seeker movement; three-second radar with five-minute cooldown; 20-foot-radius trap with 15-second dwell lock.
 
 Proposed defaults to validate: outdoor play, hiders do not see seeker, initial radar availability, hiding/round duration, trap charges/expiry, boundary penalties, uncertain-GPS fallback, and disconnection pause behavior. The requested distances remain an experimental preset until real-device evidence supports them. No additional product decision blocks starting the location feasibility milestone.

@@ -8,7 +8,7 @@ Keep this document short and current. Detailed procedures belong in the linked t
 
 **Prove the physical core loop on real phones.**
 
-The current build is the [`v0.1.4` Android prerelease](https://github.com/mrheffern/hide-and-seek/releases/tag/v0.1.4). It has the production Worker and Maps configuration, automatic tags with private Hidden Mode, authoritative GPS-based rules, durable diagnostics export, and spoken tag and trap cues. Automated tests and APK verification pass. Real-world multi-phone gameplay remains the gate.
+The current build is the [`v0.1.5` Android prerelease](https://github.com/mrheffern/hide-and-seek/releases/tag/v0.1.5). It has the production Worker and Maps configuration, automatic tags with private Hidden Mode, proactive GPS recovery, authoritative GPS-based rules, durable diagnostics export, and spoken tag and trap cues. Automated tests and APK verification pass. Real-world multi-phone gameplay remains the gate.
 
 Do not begin league-system development until this milestone passes or the field evidence clearly establishes what must change.
 
@@ -27,12 +27,25 @@ Do not treat the current build as having passed the gate. Preserve the exports a
 - [x] Make **Export match diagnostics** save a durable JSON file on the phone instead of leaving the only copy in temporary cache. On Android, provide a system-backed save flow suitable for Downloads; on iOS, provide the equivalent Save to Files flow. Keep sharing available, show the resulting filename/location or a clear cancellation message, and test that the file remains available after the app closes.
 - [x] Add server-authoritative auto-tagging for moving hiders and a private Hidden Mode after four seconds of credible stillness. Preserve manual TAG for physical discovery, handle GPS jitter conservatively, and add exact field scenarios before publishing the next prerelease.
 
+### Approved gameplay change — hider jogging limit
+
+This rule is accepted for implementation but is not present in `v0.1.5`:
+
+- [ ] Add a server-authoritative movement limit for hiders while leaving seeker speed unrestricted.
+- [ ] Let hiders move quickly enough to change hiding places, react after a seeker passes, and use an existing lead to reach cover. Do not let sustained sprinting turn an open-field pursuit into an unwinnable footrace for a slower seeker.
+- [ ] Treat breaking sight around a corner and stopping to hide again as the intended escape pattern.
+- [ ] Determine the jogging threshold, rolling observation window, warning duration, affected match phases, and escalation ending in tag or disqualification through mixed-ability field tests rather than adopting the conversational example as a final number.
+- [ ] Require sustained, fresh, precise evidence. Weak, stale, interrupted, or accuracy-ambiguous GPS and isolated speed spikes must never penalize a hider.
+- [ ] Deliver warning and penalty feedback through audio and vibration without requiring either player to watch the screen.
+- [ ] Record the evaluated speed evidence, warnings, resets, and final outcomes in diagnostics so disputed penalties can be reviewed.
+- [ ] Add deterministic rule tests and the physical scenarios in section N of the gameplay checklist before publishing the implementing release.
+
 ### 1. Prepare the test run
 
 - [ ] Recruit at least two testers and obtain at least two Android models; include a Pixel and Samsung-class phone when available.
 - [ ] Plan one three-player run in addition to the two-player role-swap runs.
 - [ ] Choose a safe field with open sky, a building edge, tree cover, marked distances, and a boundary that can be crossed deliberately.
-- [ ] Install `v0.1.4` on every phone and record the phone model, Android version, battery restrictions, network, and starting battery.
+- [ ] Install `v0.1.5` on every phone and record the phone model, Android version, battery restrictions, network, and starting battery.
 - [ ] Assign one person to record physical observations and timestamps instead of relying on what the app reports.
 - [ ] Prepare a private location for the exported diagnostics because they contain player names and precise movement history.
 

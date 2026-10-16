@@ -36,6 +36,9 @@ Use this file for decisions that affect product behavior, architecture, privacy,
 | [DEC-017](#dec-017--cost-bounded-location-lifecycle) | Cost-bounded location lifecycle | Accepted | 2026-09-20 |
 | [DEC-018](#dec-018--production-android-release-configuration) | Production Android release configuration | Accepted | 2026-10-10 |
 | [DEC-019](#dec-019--authoritative-spoken-gameplay-cues) | Authoritative spoken gameplay cues | Accepted | 2026-10-11 |
+| [DEC-020](#dec-020--automatic-tags-with-private-hidden-mode) | Automatic tags with private Hidden Mode | Accepted | 2026-10-13 |
+| [DEC-021](#dec-021--proactive-location-recovery-and-in-match-evidence-access) | Proactive location recovery and in-match evidence access | Accepted | 2026-10-14 |
+| [DEC-022](#dec-022--hider-jogging-limit-and-unrestricted-seeker-speed) | Hider jogging limit and unrestricted seeker speed | Accepted | 2026-10-16 |
 
 ## DEC-001 — Shared cross-platform TypeScript workspace
 
@@ -626,6 +629,38 @@ Temporary coverage loss should recover without leaving or rejoining, while the s
 - `apps/mobile/App.tsx`
 - `docs/GAMEPLAY_TEST_CHECKLIST.md`
 - `docs/FIELD_TEST.md`
+
+## DEC-022 — Hider jogging limit and unrestricted seeker speed
+
+**Status:** Accepted
+**Date:** 2026-10-16
+
+### Context
+
+When a hider is materially faster than the seeker, an open chase can become unwinnable regardless of the seeker's positioning or decisions. That makes raw sprint speed dominate the sport and conflicts with the goal that a slower player can win through strategy. Hiders still need enough movement freedom to change hiding places after a seeker passes, exploit an existing lead, reach cover, and hide again.
+
+### Decision
+
+- Hiders may relocate at a controlled jog but may not sustain a sprint. Seekers have no speed limit.
+- If both roles continue into an open-field pursuit, the rules should let the seeker close the chase. The intended hider escape is to use distance and cover to break sight, turn a corner, stop, and re-enter Hidden Mode.
+- The server will judge sustained movement from a rolling series of fresh, precise observations. It will not penalize a single speed reading, GPS jump, weak fix, stale fix, or observation gap.
+- Enforcement will begin with clear heads-up audio and vibration. Continuing to exceed the limit will escalate to an authoritative gameplay penalty ending in tag or disqualification. The exact escalation remains a playtest decision.
+- The speed threshold, observation window, warning duration, reset behavior, affected match phases, and final penalty are configurable experimental rules. Mixed-ability field tests must establish them before competitive use.
+- Diagnostics will retain the evidence used for warnings and penalties so organizers can review disputed outcomes without treating the phone's native speed estimate as unquestionable ground truth.
+
+### Consequences
+
+Hiding, route choice, timing, cover, and deception become more important than maintaining a faster running pace. Athletic movement still matters, and short ambiguous bursts are tolerated, but prolonged sprinting is no longer a dominant strategy. Conservative GPS enforcement adds rule and UI complexity and may miss some violations near buildings; false penalties are less acceptable than delayed enforcement. The current `v0.1.5` beta does not yet implement this decision.
+
+### Implementation
+
+- `packages/protocol/src/index.ts`
+- `packages/game-core/src/rules.ts`
+- `packages/game-core/src/rules.behavior.test.ts`
+- `services/game-server/src/room.ts`
+- `apps/mobile/src/location/`
+- `apps/mobile/src/audio/`
+- `docs/GAMEPLAY_TEST_CHECKLIST.md`
 
 ## New decision template
 

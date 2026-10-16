@@ -123,6 +123,8 @@ Installation, permissions, party creation, field setup, and rule explanation sho
 
 Powers, maps, boundaries, timing, and team formats should create meaningful decisions and counterplay. Avoid pay-to-win mechanics and random outcomes that undermine athletic legitimacy.
 
+Raw sprint speed must not decide the sport. Hiders may relocate at a controlled jog, but sustained sprinting is not a valid escape strategy; seekers remain free to run. If both roles commit to an open-field chase, the seeker should eventually win. A hider escapes strategically by using an existing lead to break sight around cover, then stopping and hiding again. This preserves movement and athletic expression while allowing anticipation, route choice, concealment, and timing to outweigh track speed.
+
 ### Design for organizers early
 
 A sport does not scale if every match depends on the founder. Product and operating procedures should progressively transfer setup, education, safety, scheduling, and dispute handling to trained local organizers.
@@ -145,6 +147,7 @@ Field evidence outranks assumptions. Instrument matches, collect consented feedb
 
 - Complete the multi-phone gameplay and locked-screen field gate.
 - Establish acceptable real-world behavior for tags, traps, boundaries, reconnects, and audio.
+- Implement and field-tune the hider jogging limit with conservative GPS evidence, heads-up warnings, and an escalating consequence for sustained sprinting.
 - Tune distances, timing, and powers based on evidence and enjoyment.
 - Confirm groups can install, learn, finish, and replay without developer help.
 
