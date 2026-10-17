@@ -187,6 +187,10 @@ function gameplaySummary(events) {
     trapsTriggered: count("trap_triggered"),
     trapsReleased: count("trap_released"),
     boundaryEliminations: count("boundary_eliminated"),
+    speedWarnings: count("speed_warning"),
+    speedProbations: count("speed_probation"),
+    speedProbationsEnded: count("speed_probation_ended"),
+    speedDisqualifications: count("speed_disqualified"),
   };
 }
 
@@ -234,7 +238,16 @@ function decisionEvidence(events, players) {
     if (!Array.isArray(payload.gameEvents)) continue;
     for (const gameEvent of payload.gameEvents) {
       if (!gameEvent || typeof gameEvent !== "object"
-        || !["player_tagged", "trap_triggered", "trap_released", "boundary_eliminated"].includes(gameEvent.type)) continue;
+        || ![
+          "player_tagged",
+          "trap_triggered",
+          "trap_released",
+          "boundary_eliminated",
+          "speed_warning",
+          "speed_probation",
+          "speed_probation_ended",
+          "speed_disqualified",
+        ].includes(gameEvent.type)) continue;
       const id = typeof gameEvent.id === "string"
         ? gameEvent.id
         : `${String(gameEvent.type)}:${String(gameEvent.at)}:${String(gameEvent.targetId)}`;
@@ -249,6 +262,13 @@ function decisionEvidence(events, players) {
           : undefined,
         gameEventId: typeof gameEvent.id === "string" ? gameEvent.id : undefined,
         atMs: finiteNumber(gameEvent.at) ?? atMs,
+        speedEvidence: gameEvent.speedEvidence && typeof gameEvent.speedEvidence === "object"
+          ? {
+              evaluatedMetersPerSecond: finiteNumber(gameEvent.speedEvidence.evaluatedMetersPerSecond),
+              nativeMetersPerSecond: finiteNumber(gameEvent.speedEvidence.nativeMetersPerSecond),
+              displacementMetersPerSecond: finiteNumber(gameEvent.speedEvidence.displacementMetersPerSecond),
+            }
+          : undefined,
         participants: participantIds.map((idValue) => nearestPriorFix(players, idValue, atMs)),
       });
     }
@@ -571,6 +591,7 @@ export function renderTextReport(report) {
   lines.push(`  Reconnects: ${report.reconnects.completed} completed, ${report.reconnects.unresolved} unresolved; p95 ${duration(report.reconnects.durationMs.p95)}`);
   lines.push(`  Tags: ${report.gameplay.playersTagged} players tagged (${report.gameplay.automaticTags} automatic, ${report.gameplay.manualTags} manual, ${report.gameplay.legacyTags} legacy/unknown); ${report.gameplay.acceptedTagAttempts}/${report.gameplay.tagAttempts} manual attempts accepted`);
   lines.push(`  Traps: ${report.gameplay.trapsPlaced} placed, ${report.gameplay.trapsTriggered} triggered, ${report.gameplay.trapsReleased} released`);
+  lines.push(`  Speed rule: ${report.gameplay.speedWarnings} warnings, ${report.gameplay.speedProbations} probations, ${report.gameplay.speedProbationsEnded} completed probations, ${report.gameplay.speedDisqualifications} disqualifications`);
   lines.push(`  Decision evidence records: ${report.gameplay.decisionEvidence.count} (use --json for accuracy and sample-age context)`);
   if (report.longestGaps.length) {
     lines.push("", "Longest gaps");

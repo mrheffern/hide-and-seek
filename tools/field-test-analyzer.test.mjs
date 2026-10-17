@@ -128,6 +128,46 @@ test("separates automatic tags from manual tag attempts", () => {
   );
 });
 
+test("reports speed-rule outcomes and preserves their evaluated evidence", () => {
+  const warning = {
+    id: "speed-warning-1",
+    at: 103_000,
+    type: "speed_warning",
+    targetId: "player-1",
+    speedEvidence: {
+      evaluatedMetersPerSecond: 3.4,
+      nativeMetersPerSecond: 3.4,
+      displacementMetersPerSecond: 3.1,
+    },
+  };
+  const disqualification = {
+    id: "speed-disqualified-1",
+    at: 113_000,
+    type: "speed_disqualified",
+    targetId: "player-1",
+    speedEvidence: {
+      evaluatedMetersPerSecond: 3.6,
+      nativeMetersPerSecond: 3.6,
+      displacementMetersPerSecond: 3.2,
+    },
+  };
+  const report = analyzeDiagnostics({
+    events: [
+      ...locationEvents({ intervals: 2 }),
+      event({ serverAtMs: 103_000, name: "location_processed", payload: { result: { ok: true }, gameEvents: [warning] } }),
+      event({ serverAtMs: 113_000, name: "location_processed", payload: { result: { ok: true }, gameEvents: [disqualification] } }),
+    ],
+  });
+
+  assert.equal(report.gameplay.speedWarnings, 1);
+  assert.equal(report.gameplay.speedDisqualifications, 1);
+  assert.equal(
+    report.gameplay.decisionEvidence.decisions.find((decision) => decision.type === "speed_warning")?.speedEvidence.evaluatedMetersPerSecond,
+    3.4,
+  );
+  assert.match(renderTextReport(report), /Speed rule: 1 warnings.*1 disqualifications/);
+});
+
 test("does not count stale or rejected moving fixes as timely", () => {
   const events = locationEvents();
   const locations = events.filter((value) => value.name === "location_processed");

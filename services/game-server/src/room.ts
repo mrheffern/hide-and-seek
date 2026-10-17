@@ -285,6 +285,12 @@ export class GameRoom extends DurableObject<Env> {
       hiddenHiderCount: Object.values(this.room.players).filter(
         (player) => player.role === "hider" && player.status === "active" && player.hiddenMode?.hiddenAt !== undefined,
       ).length,
+      speedWarningCount: Object.values(this.room.players).filter(
+        (player) => player.role === "hider" && player.status === "active" && player.speedLimit?.warningEndsAt !== undefined,
+      ).length,
+      speedProbationCount: Object.values(this.room.players).filter(
+        (player) => player.role === "hider" && player.status === "active" && player.speedLimit?.probationEndsAt !== undefined,
+      ).length,
       boundaryPoints: this.room.boundary.length,
       trapCount: this.room.traps.length,
       immobilized: this.room.immobilized ? { ...this.room.immobilized } : undefined,
@@ -549,11 +555,16 @@ export class GameRoom extends DurableObject<Env> {
       }
       const envelope = parsed.data as LocationEnvelope;
       const playerBefore = this.room.players[playerId];
+      const speedLimitBefore = playerBefore.speedLimit
+        ? { ...playerBefore.speedLimit, lastEvidence: playerBefore.speedLimit.lastEvidence ? { ...playerBefore.speedLimit.lastEvidence } : undefined }
+        : undefined;
       const stateBefore = this.stateSummary();
       const eventIds = new Set(this.room.events.map((event) => event.id));
       const criticalBefore = {
         phase: this.room.phase,
         status: playerBefore.status,
+        speedWarningEndsAt: playerBefore.speedLimit?.warningEndsAt,
+        speedProbationEndsAt: playerBefore.speedLimit?.probationEndsAt,
         immobilizedTrapId: this.room.immobilized?.trapId,
         activeHiderCount: Object.values(this.room.players).filter(
           (player) => player.role === "hider" && player.status === "active",
@@ -577,6 +588,8 @@ export class GameRoom extends DurableObject<Env> {
           fix: envelope.fix,
           deviceStatus: envelope.deviceStatus,
           result,
+          speedLimitBefore,
+          speedLimitAfter: this.room.players[playerId].speedLimit,
           before: stateBefore,
           after: this.stateSummary(),
           gameEvents: this.room.events.filter((event) => !eventIds.has(event.id)),
@@ -586,6 +599,8 @@ export class GameRoom extends DurableObject<Env> {
         const criticalChange =
           this.room.phase !== criticalBefore.phase ||
           this.room.players[playerId].status !== criticalBefore.status ||
+          this.room.players[playerId].speedLimit?.warningEndsAt !== criticalBefore.speedWarningEndsAt ||
+          this.room.players[playerId].speedLimit?.probationEndsAt !== criticalBefore.speedProbationEndsAt ||
           this.room.immobilized?.trapId !== criticalBefore.immobilizedTrapId ||
           Object.values(this.room.players).filter(
             (player) => player.role === "hider" && player.status === "active",

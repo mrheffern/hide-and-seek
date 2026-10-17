@@ -9,6 +9,7 @@ import {
   type GameEvent,
   type GameRules,
   type GpsStatus,
+  type HiderSpeedEvidence,
   type PlayerRecord,
   type PositionFix,
   type RoomSnapshot,
@@ -21,6 +22,14 @@ export const DEFAULT_RULES: GameRules = {
   tagRadiusMeters: 6.096,
   autoTagEnabled: true,
   autoTagDwellMs: 1_000,
+  hiderSpeedLimitMetersPerSecond: 2.5,
+  hiderSpeedWarningThresholdMetersPerSecond: 3,
+  hiderSpeedClearThresholdMetersPerSecond: 2.3,
+  hiderSpeedConfirmationMs: 3_000,
+  hiderSpeedWarningMs: 10_000,
+  hiderSpeedRecoveryMs: 2_000,
+  hiderSpeedProbationMs: 30_000,
+  hiderSpeedProbationConfirmationMs: 2_000,
   hiddenModeActivationMs: 4_000,
   hiddenModeExitDistanceMeters: 3,
   hiddenModeMovementSpeedMetersPerSecond: 0.8,
@@ -90,6 +99,10 @@ function clearHiddenMode(player: PlayerRecord): void {
   clearAutomaticTagState(player);
 }
 
+function clearSpeedLimit(player: PlayerRecord): void {
+  player.speedLimit = undefined;
+}
+
 function clearAllHiddenModes(state: RoomState): void {
   for (const player of Object.values(state.players)) clearHiddenMode(player);
 }
@@ -103,6 +116,7 @@ function clearPlayerLocation(player: PlayerRecord): void {
   player.boundaryOutsideMs = 0;
   player.boundaryLastObservedAt = undefined;
   clearHiddenMode(player);
+  clearSpeedLimit(player);
 }
 
 function finishMatch(
@@ -377,6 +391,7 @@ function setSeeker(
     player.role = player.id === playerId ? "seeker" : "hider";
     player.trapChargesRemaining = player.role === "hider" ? state.rules.trapsPerHider : 0;
     clearHiddenMode(player);
+    clearSpeedLimit(player);
   }
   addEvent(state, context, {
     type: "seeker_selected",
@@ -429,6 +444,7 @@ function startMatch(state: RoomState, actorId: string, context: RuleContext): Ru
     player.boundaryOutsideMs = 0;
     player.boundaryLastObservedAt = undefined;
     clearHiddenMode(player);
+    clearSpeedLimit(player);
   }
   addEvent(state, context, { type: "match_started", actorId, message: "The hiding countdown started." });
   return ok("Match started.");
@@ -475,6 +491,19 @@ function resumeMatch(state: RoomState, actorId: string, context: RuleContext): R
   for (const player of Object.values(state.players)) {
     player.boundaryLastObservedAt = undefined;
     if (player.lastTagAttemptAt !== undefined) player.lastTagAttemptAt += shift;
+    if (player.speedLimit) {
+      const unresolvedObservationGap = player.speedLimit.lastObservationAt !== undefined &&
+        state.pausedAt - player.speedLimit.lastObservationAt > state.rules.maxObservationGapMs
+        ? state.pausedAt - player.speedLimit.lastObservationAt
+        : 0;
+      const speedTimerShift = shift + unresolvedObservationGap;
+      if (player.speedLimit.warningStartedAt !== undefined) player.speedLimit.warningStartedAt += speedTimerShift;
+      if (player.speedLimit.warningEndsAt !== undefined) player.speedLimit.warningEndsAt += speedTimerShift;
+      if (player.speedLimit.probationEndsAt !== undefined) player.speedLimit.probationEndsAt += speedTimerShift;
+      player.speedLimit.lastObservationAt = undefined;
+      player.speedLimit.speedingSinceAt = undefined;
+      player.speedLimit.recoveryStartedAt = undefined;
+    }
     clearHiddenMode(player);
   }
   state.phase = state.pausedFromPhase;
@@ -546,6 +575,206 @@ function startHiddenModeObservation(
   };
 }
 
+function activeSpeedPenalty(player: PlayerRecord, now: number): "warning" | "probation" | undefined {
+  if (player.speedLimit?.warningEndsAt !== undefined) return "warning";
+  if (player.speedLimit?.probationEndsAt !== undefined && player.speedLimit.probationEndsAt > now) {
+    return "probation";
+  }
+  return undefined;
+}
+
+function observedMovementSpeed(
+  state: RoomState,
+  previous: AcceptedPositionFix | undefined,
+  fix: AcceptedPositionFix,
+): HiderSpeedEvidence | undefined {
+  const nativeSpeed = fix.speedMetersPerSecond;
+  if (
+    !previous ||
+    previous.accuracyMeters > state.rules.maxCompetitiveAccuracyMeters
+  ) return nativeSpeed === undefined
+    ? undefined
+    : { evaluatedMetersPerSecond: nativeSpeed, nativeMetersPerSecond: nativeSpeed };
+
+  const observedAt = fix.receivedAtMs - fix.sampleAgeMs;
+  const previousObservedAt = previous.receivedAtMs - previous.sampleAgeMs;
+  const elapsedMs = observedAt - previousObservedAt;
+  if (elapsedMs <= 0 || elapsedMs > state.rules.maxObservationGapMs) return nativeSpeed === undefined
+    ? undefined
+    : { evaluatedMetersPerSecond: nativeSpeed, nativeMetersPerSecond: nativeSpeed };
+
+  const accuracyAllowance = Math.min(
+    state.rules.maxCompetitiveAccuracyMeters,
+    Math.max(previous.accuracyMeters, fix.accuracyMeters),
+  );
+  const credibleDistance = Math.max(0, distanceMeters(previous, fix) - accuracyAllowance);
+  const displacementSpeed = credibleDistance / (elapsedMs / 1_000);
+  return {
+    evaluatedMetersPerSecond: nativeSpeed === undefined
+      ? displacementSpeed
+      : Math.max(nativeSpeed, displacementSpeed),
+    nativeMetersPerSecond: nativeSpeed,
+    displacementMetersPerSecond: displacementSpeed,
+  };
+}
+
+function disqualifyHiderForSpeed(
+  state: RoomState,
+  player: PlayerRecord,
+  context: RuleContext,
+  speedEvidence?: HiderSpeedEvidence,
+): void {
+  const playerName = player.name;
+  player.status = "eliminated";
+  clearPlayerLocation(player);
+  addEvent(state, context, {
+    type: "speed_disqualified",
+    targetId: player.id,
+    speedEvidence,
+    message: `${playerName} was disqualified for exceeding the hider speed limit.`,
+  });
+  const activeHider = Object.values(state.players).some(
+    (candidate) => candidate.role === "hider" && candidate.status === "active",
+  );
+  if (!activeHider) {
+    finishMatch(state, "seeker", context, "No hiders remain. The seeker wins.");
+  }
+}
+
+function endHiderSpeedProbation(
+  state: RoomState,
+  player: PlayerRecord,
+  context: RuleContext,
+): void {
+  clearSpeedLimit(player);
+  addEvent(state, context, {
+    type: "speed_probation_ended",
+    targetId: player.id,
+    message: `${player.name}'s speed probation ended.`,
+  });
+  player.speedLimit = { lastObservationAt: context.now };
+}
+
+function processHiderSpeedObservation(
+  state: RoomState,
+  player: PlayerRecord,
+  previous: AcceptedPositionFix | undefined,
+  fix: AcceptedPositionFix,
+  context: RuleContext,
+): void {
+  if (player.role !== "hider" || player.status !== "active" || state.phase !== "active") {
+    if (state.phase !== "paused") clearSpeedLimit(player);
+    return;
+  }
+
+  const precise = fix.accuracyMeters <= state.rules.maxCompetitiveAccuracyMeters &&
+    fixAgeMs(fix, context.now) <= state.rules.maxFixAgeMs;
+  const observation = player.speedLimit ??= {};
+  const observationGapMs = observation.lastObservationAt === undefined
+    ? undefined
+    : context.now - observation.lastObservationAt;
+
+  if (!precise || (observationGapMs !== undefined && observationGapMs > state.rules.maxObservationGapMs)) {
+    const suspendedMs = observation.lastObservationAt === undefined
+      ? 0
+      : Math.max(0, context.now - observation.lastObservationAt);
+    if (observation.warningEndsAt !== undefined) observation.warningEndsAt += suspendedMs;
+    if (observation.probationEndsAt !== undefined) observation.probationEndsAt += suspendedMs;
+    observation.lastObservationAt = context.now;
+    observation.speedingSinceAt = undefined;
+    observation.recoveryStartedAt = undefined;
+    observation.lastEvidence = undefined;
+    if (!precise) return;
+  } else {
+    observation.lastObservationAt = context.now;
+  }
+
+  if (
+    observation.probationEndsAt !== undefined &&
+    context.now >= observation.probationEndsAt &&
+    observation.speedingSinceAt === undefined
+  ) {
+    endHiderSpeedProbation(state, player, context);
+  }
+
+  const speedLimit = player.speedLimit!;
+  const speedEvidence = observedMovementSpeed(state, previous, fix);
+  speedLimit.lastEvidence = speedEvidence;
+  if (speedEvidence === undefined) {
+    speedLimit.speedingSinceAt = undefined;
+    speedLimit.recoveryStartedAt = undefined;
+    return;
+  }
+  const observedSpeed = speedEvidence.evaluatedMetersPerSecond;
+
+  if (speedLimit.warningEndsAt !== undefined) {
+    player.hiddenMode = undefined;
+    if (observedSpeed <= state.rules.hiderSpeedClearThresholdMetersPerSecond) {
+      speedLimit.speedingSinceAt = undefined;
+      speedLimit.recoveryStartedAt ??= context.now;
+      if (context.now - speedLimit.recoveryStartedAt >= state.rules.hiderSpeedRecoveryMs) {
+        player.speedLimit = {
+          lastObservationAt: context.now,
+          probationEndsAt: context.now + state.rules.hiderSpeedProbationMs,
+          lastEvidence: speedEvidence,
+        };
+        addEvent(state, context, {
+          type: "speed_probation",
+          targetId: player.id,
+          speedEvidence,
+          message: `${player.name} slowed down and entered speed probation.`,
+        });
+      }
+      return;
+    }
+    speedLimit.recoveryStartedAt = undefined;
+    if (context.now >= speedLimit.warningEndsAt) {
+      disqualifyHiderForSpeed(state, player, context, speedEvidence);
+    }
+    return;
+  }
+
+  if (speedLimit.probationEndsAt !== undefined) {
+    player.hiddenMode = undefined;
+    if (observedSpeed >= state.rules.hiderSpeedWarningThresholdMetersPerSecond) {
+      speedLimit.speedingSinceAt ??= context.now;
+      if (
+        context.now - speedLimit.speedingSinceAt >=
+        state.rules.hiderSpeedProbationConfirmationMs
+      ) {
+        disqualifyHiderForSpeed(state, player, context, speedEvidence);
+      }
+    } else {
+      speedLimit.speedingSinceAt = undefined;
+      if (context.now >= speedLimit.probationEndsAt) {
+        endHiderSpeedProbation(state, player, context);
+      }
+    }
+    return;
+  }
+
+  if (observedSpeed >= state.rules.hiderSpeedWarningThresholdMetersPerSecond) {
+    speedLimit.speedingSinceAt ??= context.now;
+    if (context.now - speedLimit.speedingSinceAt >= state.rules.hiderSpeedConfirmationMs) {
+      player.speedLimit = {
+        lastObservationAt: context.now,
+        warningStartedAt: context.now,
+        warningEndsAt: context.now + state.rules.hiderSpeedWarningMs,
+        lastEvidence: speedEvidence,
+      };
+      clearHiddenMode(player);
+      addEvent(state, context, {
+        type: "speed_warning",
+        targetId: player.id,
+        speedEvidence,
+        message: `${player.name} received a speed warning and has ${Math.ceil(state.rules.hiderSpeedWarningMs / 1_000)} seconds to slow down.`,
+      });
+    }
+  } else {
+    speedLimit.speedingSinceAt = undefined;
+  }
+}
+
 function processHiddenModeObservation(
   state: RoomState,
   player: PlayerRecord,
@@ -558,6 +787,10 @@ function processHiddenModeObservation(
     (state.phase !== "hiding" && state.phase !== "active")
   ) {
     clearHiddenMode(player);
+    return;
+  }
+  if (activeSpeedPenalty(player, context.now) !== undefined) {
+    player.hiddenMode = undefined;
     return;
   }
   const precise = fix.accuracyMeters <= state.rules.maxCompetitiveAccuracyMeters &&
@@ -1030,6 +1263,10 @@ export function acceptLocation(
   player.connected = true;
   state.version += 1;
   processBoundaryObservation(state, player, player.latestFix, context);
+  if (player.status === "active") {
+    processHiderSpeedObservation(state, player, previous, player.latestFix, context);
+  }
+  if (player.status !== "active") return ok("Location accepted.");
   processHiddenModeObservation(state, player, player.latestFix, context);
   if (player.role === "seeker" && player.status === "active") {
     processSeekerTrapObservation(state, player, player.latestFix, context);
@@ -1072,6 +1309,19 @@ export function snapshotForPlayer(state: RoomState, viewerId: string, now: numbe
               : undefined,
             hiddenAt: player.hiddenMode?.hiddenAt,
           }
+        : undefined,
+      speedLimit: player.id === viewerId && player.role === "hider" && player.status === "active"
+        ? activeSpeedPenalty(player, now) === "warning"
+          ? {
+              status: "warning" as const,
+              warningEndsAt: player.speedLimit?.warningEndsAt,
+            }
+          : activeSpeedPenalty(player, now) === "probation"
+            ? {
+                status: "probation" as const,
+                probationEndsAt: player.speedLimit?.probationEndsAt,
+              }
+            : undefined
         : undefined,
       trapChargesRemaining: player.id === viewerId ? player.trapChargesRemaining : undefined,
     };

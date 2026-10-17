@@ -86,6 +86,19 @@ describe("beta rule preset", () => {
       hiddenModeExitDistanceMeters: 3,
     });
   });
+
+  it("uses the initial hider speed warning and probation values", () => {
+    expect(DEFAULT_RULES).toMatchObject({
+      hiderSpeedLimitMetersPerSecond: 2.5,
+      hiderSpeedWarningThresholdMetersPerSecond: 3,
+      hiderSpeedClearThresholdMetersPerSecond: 2.3,
+      hiderSpeedConfirmationMs: 3_000,
+      hiderSpeedWarningMs: 10_000,
+      hiderSpeedRecoveryMs: 2_000,
+      hiderSpeedProbationMs: 30_000,
+      hiderSpeedProbationConfirmationMs: 2_000,
+    });
+  });
 });
 
 describe("authoritative visibility", () => {

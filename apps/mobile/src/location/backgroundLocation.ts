@@ -21,6 +21,7 @@ let eliminationNotified = false;
 let boundaryAlert: "near" | "outside" | undefined;
 let lastDetailedLocationDiagnosticAt = 0;
 let lastHiddenMode: boolean | undefined;
+let lastSpeedLimitStatus: "warning" | "probation" | undefined;
 
 export function resetLocationNotificationState(): void {
   lastNotifiedTrapId = undefined;
@@ -28,6 +29,7 @@ export function resetLocationNotificationState(): void {
   boundaryAlert = undefined;
   lastDetailedLocationDiagnosticAt = 0;
   lastHiddenMode = undefined;
+  lastSpeedLimitStatus = undefined;
   resetDeviceStatusCache();
 }
 
@@ -103,7 +105,9 @@ if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
       const self = result.snapshot.players.find((player) => player.id === result.snapshot.selfId);
       const hiddenModeChanged = self?.hiddenMode !== undefined && self.hiddenMode.hidden !== lastHiddenMode;
       if (self?.hiddenMode !== undefined) lastHiddenMode = self.hiddenMode.hidden;
-      if (recordDetailedSample || hiddenModeChanged || !result.ok || result.snapshot.outsideBoundary || result.snapshot.immobilized) recordDiagnostic({
+      const speedLimitChanged = self?.speedLimit?.status !== lastSpeedLimitStatus;
+      lastSpeedLimitStatus = self?.speedLimit?.status;
+      if (recordDetailedSample || hiddenModeChanged || speedLimitChanged || !result.ok || result.snapshot.outsideBoundary || result.snapshot.immobilized) recordDiagnostic({
         context: diagnosticContext,
         level: "debug",
         category: "location",
@@ -120,6 +124,7 @@ if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
             boundaryGraceRemainingMs: result.snapshot.boundaryGraceRemainingMs,
             immobilized: result.snapshot.immobilized,
             hiddenMode: self?.hiddenMode,
+            speedLimit: self?.speedLimit,
           },
         },
       });
@@ -142,10 +147,34 @@ if (!TaskManager.isTaskDefined(LOCATION_TASK_NAME)) {
           trigger: null,
         });
       }
+      if (speedLimitChanged && self?.speedLimit?.status === "warning") {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: "Slow down",
+            body: `You have ${Math.ceil(result.snapshot.rules.hiderSpeedWarningMs / 1_000)} seconds to slow below the hider speed limit.`,
+            sound: true,
+          },
+          trigger: null,
+        });
+      } else if (speedLimitChanged && self?.speedLimit?.status === "probation") {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: "Speed probation",
+            body: `Another confirmed sprint during the next ${Math.ceil(result.snapshot.rules.hiderSpeedProbationMs / 1_000)} seconds will disqualify you.`,
+            sound: true,
+          },
+          trigger: null,
+        });
+      }
       if (self?.status === "eliminated" && !eliminationNotified) {
         eliminationNotified = true;
+        const speedDisqualification = result.snapshot.events.some(
+          (event) => event.type === "speed_disqualified" && event.targetId === self.id,
+        );
         await Notifications.scheduleNotificationAsync({
-          content: { title: "You were tagged", body: "Your location sharing has stopped.", sound: false },
+          content: speedDisqualification
+            ? { title: "Speed disqualification", body: "You exceeded the hider speed rule and are out of this round.", sound: true }
+            : { title: "You were tagged", body: "Your location sharing has stopped.", sound: false },
           trigger: null,
         });
       }

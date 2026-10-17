@@ -537,6 +537,176 @@ describe("automatic tags and Hidden Mode", () => {
   });
 });
 
+describe("hider speed limit", () => {
+  const triggerWarning = (game: ReturnType<typeof setup>) => {
+    game.location("host", point(0), { speedMetersPerSecond: 3.5 });
+    game.tick(1_500);
+    game.location("host", point(5), { speedMetersPerSecond: 3.5 });
+    game.tick(1_500);
+    game.location("host", point(10), { speedMetersPerSecond: 3.5 });
+  };
+
+  it("requires sustained speeding, warns for ten seconds, then uses thirty-second probation", () => {
+    const game = setup();
+    configureAndStart(game);
+
+    triggerWarning(game);
+    expect(game.state.players.host.status).toBe("active");
+    expect(game.state.events.at(-1)?.type).toBe("speed_warning");
+    expect(game.state.events.at(-1)?.speedEvidence).toMatchObject({
+      evaluatedMetersPerSecond: 3.5,
+      nativeMetersPerSecond: 3.5,
+    });
+    expect(snapshotForPlayer(game.state, "host", game.now()).players[0].speedLimit).toEqual({
+      status: "warning",
+      warningEndsAt: game.now() + 10_000,
+    });
+
+    game.tick(1_000);
+    game.location("host", point(12), { speedMetersPerSecond: 2 });
+    game.tick(2_000);
+    game.location("host", point(14), { speedMetersPerSecond: 2 });
+
+    expect(game.state.events.at(-1)?.type).toBe("speed_probation");
+    expect(snapshotForPlayer(game.state, "host", game.now()).players[0].speedLimit).toEqual({
+      status: "probation",
+      probationEndsAt: game.now() + 30_000,
+    });
+  });
+
+  it("disqualifies a hider who does not slow down before the warning expires", () => {
+    const game = setup({ disconnectPauseMs: 60_000 });
+    configureAndStart(game);
+    triggerWarning(game);
+
+    for (let second = 2; second <= 10; second += 2) {
+      game.tick(2_000);
+      game.location("host", point(10 + second * 3), { speedMetersPerSecond: 3.5 });
+    }
+
+    expect(game.state.players.host.status).toBe("eliminated");
+    expect(game.state.events.some((event) => event.type === "speed_disqualified")).toBe(true);
+    expect(game.state.phase).toBe("finished");
+    expect(game.state.winner).toBe("seeker");
+  });
+
+  it("disqualifies a second confirmed speeding episode during probation", () => {
+    const game = setup({ disconnectPauseMs: 60_000 });
+    configureAndStart(game);
+    triggerWarning(game);
+    game.tick(1_000);
+    game.location("host", point(12), { speedMetersPerSecond: 2 });
+    game.tick(2_000);
+    game.location("host", point(14), { speedMetersPerSecond: 2 });
+
+    game.tick(28_000);
+    game.location("host", point(18), { speedMetersPerSecond: 3.5 });
+    expect(game.state.players.host.status).toBe("active");
+    game.tick(2_000);
+    game.location("host", point(25), { speedMetersPerSecond: 3.5 });
+
+    expect(game.state.players.host.status).toBe("eliminated");
+    expect(game.state.events.some((event) => event.type === "speed_disqualified")).toBe(true);
+  });
+
+  it("does not warn from one speed spike and can use reliable displacement when native speed is absent", () => {
+    const spike = setup();
+    configureAndStart(spike);
+    spike.location("host", point(0), { speedMetersPerSecond: 8 });
+    spike.tick(1_500);
+    spike.location("host", point(0), { speedMetersPerSecond: 0 });
+    expect(spike.state.events.some((event) => event.type === "speed_warning")).toBe(false);
+
+    const displacement = setup();
+    configureAndStart(displacement);
+    displacement.tick(1_000);
+    displacement.location("host", point(8), { speedMetersPerSecond: undefined });
+    displacement.tick(1_000);
+    displacement.location("host", point(16), { speedMetersPerSecond: undefined });
+    displacement.tick(2_000);
+    displacement.location("host", point(32), { speedMetersPerSecond: undefined });
+    expect(displacement.state.events.some((event) => event.type === "speed_warning")).toBe(true);
+  });
+
+  it("suspends the warning decision while GPS accuracy is too weak to judge", () => {
+    const game = setup({ disconnectPauseMs: 60_000 });
+    configureAndStart(game);
+    triggerWarning(game);
+    const originalDeadline = game.state.players.host.speedLimit?.warningEndsAt;
+
+    game.tick(10_000);
+    game.location("host", point(20), { accuracyMeters: 30, speedMetersPerSecond: 4 });
+    expect(game.state.players.host.status).toBe("active");
+    expect(game.state.players.host.speedLimit?.warningEndsAt).toBe(originalDeadline! + 10_000);
+    expect(game.state.players.host.speedLimit?.lastEvidence).toBeUndefined();
+
+    game.tick(1_000);
+    game.location("host", point(24), { speedMetersPerSecond: 4 });
+    expect(game.state.players.host.status).toBe("active");
+  });
+
+  it("disables Hidden Mode throughout warnings and probation but never limits the seeker", () => {
+    const game = setup({ hiddenModeActivationMs: 1_000 });
+    configureAndStart(game);
+    game.tick(1_000);
+    game.location("host", point(0), { speedMetersPerSecond: 0 });
+    expect(game.state.players.host.hiddenMode?.hiddenAt).toBeDefined();
+
+    triggerWarning(game);
+    expect(game.state.players.host.hiddenMode).toBeUndefined();
+    game.tick(1_000);
+    game.location("host", point(12), { speedMetersPerSecond: 2 });
+    game.tick(2_000);
+    game.location("host", point(14), { speedMetersPerSecond: 2 });
+    game.tick(5_000);
+    game.location("host", point(14), { speedMetersPerSecond: 0 });
+    expect(game.state.players.host.hiddenMode).toBeUndefined();
+
+    for (let elapsed = 0; elapsed <= 5_000; elapsed += 1_000) {
+      if (elapsed) game.tick(1_000);
+      game.location("seeker", point(20), { speedMetersPerSecond: 8 });
+    }
+    expect(game.state.players.seeker.status).toBe("active");
+    expect(game.state.players.seeker.speedLimit).toBeUndefined();
+  });
+
+  it("freezes a warning while the match is paused and clears its pre-pause speed streak", () => {
+    const game = setup({ disconnectPauseMs: 60_000 });
+    configureAndStart(game);
+    triggerWarning(game);
+    const originalDeadline = game.state.players.host.speedLimit?.warningEndsAt;
+
+    expect(game.command("host", { type: "pause_match" }).ok).toBe(true);
+    game.tick(20_000);
+    game.refreshAll();
+    expect(game.command("host", { type: "resume_match" }).ok).toBe(true);
+
+    expect(game.state.players.host.speedLimit?.warningEndsAt).toBe(originalDeadline! + 20_000);
+    expect(game.state.players.host.speedLimit?.speedingSinceAt).toBeUndefined();
+  });
+
+  it("suspends an unresolved GPS gap before an automatic match pause", () => {
+    const game = setup();
+    configureAndStart(game);
+    triggerWarning(game);
+
+    game.advance(7_001);
+    expect(game.state.phase).toBe("paused");
+    const pausedAt = game.state.pausedAt!;
+    const observationGap = pausedAt - game.state.players.host.speedLimit!.lastObservationAt!;
+    const deadlineBeforeResume = game.state.players.host.speedLimit!.warningEndsAt!;
+    game.tick(20_000);
+    game.refreshAll();
+    const pausedDuration = game.now() - pausedAt;
+    expect(game.command("host", { type: "resume_match" }).ok).toBe(true);
+
+    expect(game.state.players.host.speedLimit?.warningEndsAt).toBe(
+      deadlineBeforeResume + pausedDuration + observationGap,
+    );
+    expect(game.state.players.host.speedLimit!.warningEndsAt! - game.now()).toBe(10_000);
+  });
+});
+
 describe("radar behavior", () => {
   it("allows only the active seeker and applies exact visibility and cooldown windows", () => {
     const game = setup({ radarDurationMs: 3_000, radarCooldownMs: 5_000 });

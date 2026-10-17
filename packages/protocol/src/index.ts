@@ -1,4 +1,4 @@
-export const PROTOCOL_VERSION = 2 as const;
+export const PROTOCOL_VERSION = 3 as const;
 
 export type PlayerRole = "seeker" | "hider";
 export type PlayerStatus = "active" | "eliminated" | "departed";
@@ -45,6 +45,14 @@ export interface GameRules {
   tagRadiusMeters: number;
   autoTagEnabled: boolean;
   autoTagDwellMs: number;
+  hiderSpeedLimitMetersPerSecond: number;
+  hiderSpeedWarningThresholdMetersPerSecond: number;
+  hiderSpeedClearThresholdMetersPerSecond: number;
+  hiderSpeedConfirmationMs: number;
+  hiderSpeedWarningMs: number;
+  hiderSpeedRecoveryMs: number;
+  hiderSpeedProbationMs: number;
+  hiderSpeedProbationConfirmationMs: number;
   hiddenModeActivationMs: number;
   hiddenModeExitDistanceMeters: number;
   hiddenModeMovementSpeedMetersPerSecond: number;
@@ -75,6 +83,22 @@ export interface HiddenModeRecord {
   hiddenAt?: number;
 }
 
+export interface HiderSpeedLimitRecord {
+  lastObservationAt?: number;
+  speedingSinceAt?: number;
+  warningStartedAt?: number;
+  warningEndsAt?: number;
+  recoveryStartedAt?: number;
+  probationEndsAt?: number;
+  lastEvidence?: HiderSpeedEvidence;
+}
+
+export interface HiderSpeedEvidence {
+  evaluatedMetersPerSecond: number;
+  nativeMetersPerSecond?: number;
+  displacementMetersPerSecond?: number;
+}
+
 export interface PlayerRecord {
   id: string;
   name: string;
@@ -86,6 +110,7 @@ export interface PlayerRecord {
   trapChargesRemaining: number;
   lastTagAttemptAt?: number;
   hiddenMode?: HiddenModeRecord;
+  speedLimit?: HiderSpeedLimitRecord;
   autoTagProximityStartedAt?: number;
   autoTagLastObservedAt?: number;
   outsideBoundary: boolean;
@@ -129,6 +154,10 @@ export interface GameEvent {
     | "match_resumed"
     | "player_tagged"
     | "boundary_eliminated"
+    | "speed_warning"
+    | "speed_probation"
+    | "speed_probation_ended"
+    | "speed_disqualified"
     | "radar_used"
     | "trap_placed"
     | "trap_triggered"
@@ -139,6 +168,8 @@ export interface GameEvent {
   targetId?: string;
   /** Included on player_tagged events so diagnostics can separate proximity and manual outcomes. */
   tagMethod?: "automatic" | "manual";
+  /** Included on speed-rule transitions so diagnostics preserve the server's exact evaluation. */
+  speedEvidence?: HiderSpeedEvidence;
   message: string;
 }
 
@@ -186,6 +217,12 @@ export interface VisiblePlayer {
     hidden: boolean;
     activatesAt?: number;
     hiddenAt?: number;
+  };
+  /** Only included for an active hider viewing their own snapshot. */
+  speedLimit?: {
+    status: "warning" | "probation";
+    warningEndsAt?: number;
+    probationEndsAt?: number;
   };
   /** Only included for the player viewing their own snapshot. */
   trapChargesRemaining?: number;

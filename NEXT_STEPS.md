@@ -29,16 +29,18 @@ Do not treat the current build as having passed the gate. Preserve the exports a
 
 ### Approved gameplay change — hider jogging limit
 
-This rule is accepted for implementation but is not present in `v0.1.5`:
+This rule is implemented on `main` under protocol version 3 but is not present in `v0.1.5`. It must ship as a coordinated Worker and app prerelease so the old client cannot be penalized without the new warning UI:
 
-- [ ] Add a server-authoritative movement limit for hiders while leaving seeker speed unrestricted.
-- [ ] Let hiders move quickly enough to change hiding places, react after a seeker passes, and use an existing lead to reach cover. Do not let sustained sprinting turn an open-field pursuit into an unwinnable footrace for a slower seeker.
-- [ ] Treat breaking sight around a corner and stopping to hide again as the intended escape pattern.
-- [ ] Determine the jogging threshold, rolling observation window, warning duration, affected match phases, and escalation ending in tag or disqualification through mixed-ability field tests rather than adopting the conversational example as a final number.
-- [ ] Require sustained, fresh, precise evidence. Weak, stale, interrupted, or accuracy-ambiguous GPS and isolated speed spikes must never penalize a hider.
-- [ ] Deliver warning and penalty feedback through audio and vibration without requiring either player to watch the screen.
-- [ ] Record the evaluated speed evidence, warnings, resets, and final outcomes in diagnostics so disputed penalties can be reviewed.
-- [ ] Add deterministic rule tests and the physical scenarios in section N of the gameplay checklist before publishing the implementing release.
+- [x] Add a server-authoritative movement limit for hiders while leaving seeker speed unrestricted.
+- [x] Let hiders move quickly enough to change hiding places, react after a seeker passes, and use an existing lead to reach cover. Do not let sustained sprinting turn an open-field pursuit into an unwinnable footrace for a slower seeker.
+- [x] Treat breaking sight around a corner and stopping to hide again as the intended escape pattern.
+- [x] Start with an experimental 2.5 m/s limit, a three-second confirmation at or above 3.0 m/s, and a 10-second warning. Slowing to 2.3 m/s or less for two seconds starts 30 seconds of probation; continued or repeated confirmed speeding disqualifies the hider.
+- [x] Apply enforcement only during active play. Seekers, the hiding countdown, and paused time are exempt.
+- [x] Require sustained, fresh, precise evidence. Weak, stale, interrupted, or accuracy-ambiguous GPS and isolated speed spikes must never penalize a hider.
+- [x] Deliver visible countdowns, vibration, and local locked-phone notifications without requiring the player to interact while moving.
+- [x] Record native speed, accuracy-adjusted displacement, evaluated speed, state transitions, resets, and final outcomes in diagnostics so disputed penalties can be reviewed.
+- [x] Add deterministic rule tests and the physical scenarios in section N of the gameplay checklist.
+- [ ] Publish the coordinated Worker and Android prerelease, then tune the experimental values through mixed-ability section N field tests rather than treating the initial numbers as final competitive rules.
 
 ### 1. Prepare the test run
 

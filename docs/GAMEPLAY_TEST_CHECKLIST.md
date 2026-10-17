@@ -260,20 +260,22 @@ These checks cover the bundled media cues retained in `v0.1.3`. The app does not
 - [ ] **M8 — No replay:** Reconnect or reopen immediately after an event and confirm repeated snapshots do not replay the cue. Reopening later must not play an old event.
 - [ ] **M9 — Evidence:** The diagnostics export contains `audio/gameplay_sound_started`, or `audio/gameplay_sound_failed` if playback failed, correlated to the authoritative event ID on each intended phone.
 
-## N. Hider jogging limit — planned, not in v0.1.5
+## N. Hider jogging limit — implemented on `main`, not in v0.1.5
 
-Do not run these as current-build acceptance checks. Use them after DEC-022 is implemented and the first experimental threshold is selected. Include hiders and seekers with meaningfully different running ability.
+Do not run these against v0.1.5. Use the coordinated protocol-v3 Worker and implementing app prerelease. The initial preset is a 2.5 m/s target, warning after three seconds at or above 3.0 m/s, two seconds at or below 2.3 m/s to comply, a 10-second warning, and 30 seconds of probation. Include hiders and seekers with meaningfully different running ability.
 
 - [ ] **N1 — Ordinary relocation:** A hider jogging below the configured limit can change hiding places without warning or penalty.
 - [ ] **N2 — Brief burst:** A short acceleration, direction change, or isolated high native-speed sample does not count as sustained sprinting.
-- [ ] **N3 — Sustained sprint:** A hider who remains clearly above the limit across the configured rolling window receives the intended audio and vibration warning.
-- [ ] **N4 — Compliance:** Slowing below the limit after a warning clears accumulated violation state without a later surprise penalty.
-- [ ] **N5 — Continued violation:** Continuing to sprint after the full warning and grace sequence produces the configured tag or disqualification exactly once on every phone.
-- [ ] **N6 — Seeker exemption:** The seeker can sprint through the same route without a speed warning or penalty.
-- [ ] **N7 — GPS uncertainty:** Weak accuracy, stale samples, a network gap, OS batching, and building-edge multipath pause or reset evaluation rather than producing a violation.
-- [ ] **N8 — Strategic escape:** With an initial lead, a hider may jog around cover, stop, regain Hidden Mode, and avoid automatic tagging; continuing across an open field eventually favors the seeker.
-- [ ] **N9 — Locked-phone feedback:** Warning and penalty cues work with the hider's phone locked and do not require screen interaction while moving.
-- [ ] **N10 — Evidence:** Diagnostics identify the observation window, qualified fixes, estimated speed or displacement, uncertainty handling, warnings, resets, and final outcome without relying on a single native speed reading.
+- [ ] **N3 — Sustained sprint:** Three reliable seconds at or above 3.0 m/s produces one warning, vibration, and locked-phone notification with a 10-second countdown.
+- [ ] **N4 — Compliance:** Remaining at or below 2.3 m/s for two seconds during the warning enters 30 seconds of probation. Hidden Mode remains disabled throughout warning and probation.
+- [ ] **N5 — Continued violation:** Continuing above the clearing threshold through the warning disqualifies the hider exactly once and updates every phone.
+- [ ] **N6 — Probation violation:** Another reliably confirmed two-second episode at or above 3.0 m/s during probation disqualifies the hider; ordinary movement does not.
+- [ ] **N7 — Seeker exemption:** The seeker can sprint through the same route without a speed warning or penalty.
+- [ ] **N8 — GPS uncertainty:** Weak accuracy, stale samples, a network gap, OS batching, and building-edge multipath suspend evaluation and its timers rather than producing a violation.
+- [ ] **N9 — Strategic escape:** With an initial lead, a hider may jog around cover, stop, regain Hidden Mode after probation ends, and avoid automatic tagging; continuing across an open field eventually favors the seeker.
+- [ ] **N10 — Pause/resume:** Pausing freezes warning and probation time. Resuming requires live GPS and continues with the correct remaining time without preserving a pre-pause speeding streak.
+- [ ] **N11 — Locked-phone feedback:** Warning and penalty cues work with the hider's phone locked and do not require screen interaction while moving.
+- [ ] **N12 — Evidence:** Diagnostics identify native speed, accuracy-adjusted displacement, evaluated speed, qualified fixes, uncertainty suspension, warnings, probation, resets, and final outcome.
 
 ## Failure handling
 

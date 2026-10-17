@@ -632,8 +632,8 @@ Temporary coverage loss should recover without leaving or rejoining, while the s
 
 ## DEC-022 — Hider jogging limit and unrestricted seeker speed
 
-**Status:** Accepted
-**Date:** 2026-10-16
+**Status:** Implemented experimentally
+**Date:** 2026-10-17
 
 ### Context
 
@@ -644,13 +644,16 @@ When a hider is materially faster than the seeker, an open chase can become unwi
 - Hiders may relocate at a controlled jog but may not sustain a sprint. Seekers have no speed limit.
 - If both roles continue into an open-field pursuit, the rules should let the seeker close the chase. The intended hider escape is to use distance and cover to break sight, turn a corner, stop, and re-enter Hidden Mode.
 - The server will judge sustained movement from a rolling series of fresh, precise observations. It will not penalize a single speed reading, GPS jump, weak fix, stale fix, or observation gap.
-- Enforcement will begin with clear heads-up audio and vibration. Continuing to exceed the limit will escalate to an authoritative gameplay penalty ending in tag or disqualification. The exact escalation remains a playtest decision.
-- The speed threshold, observation window, warning duration, reset behavior, affected match phases, and final penalty are configurable experimental rules. Mixed-ability field tests must establish them before competitive use.
-- Diagnostics will retain the evidence used for warnings and penalties so organizers can review disputed outcomes without treating the phone's native speed estimate as unquestionable ground truth.
+- The initial preset permits 2.5 m/s. Three seconds evaluated at or above 3.0 m/s starts a 10-second warning. The hider demonstrates compliance by remaining at or below 2.3 m/s for two seconds.
+- Compliance starts 30 seconds of probation. Continued speeding through the warning, or another two-second confirmed speeding episode during probation, disqualifies the hider from the round. Hidden Mode is unavailable during warning and probation.
+- Enforcement applies only during active play. Seekers, the hiding countdown, and paused time are exempt. Weak or stale fixes and observation gaps suspend evaluation rather than counting against the player.
+- Feedback uses a visible countdown, vibration, and local notification. A future spoken warning can supplement these signals without changing the authoritative rule.
+- Diagnostics retain native speed, accuracy-adjusted displacement, the evaluated speed, state transitions, and the final outcome so organizers can review disputed penalties without treating one native estimate as unquestionable ground truth.
+- These values are configurable experimental rules. Mixed-ability field tests must establish them before competitive use, and protocol version 3 prevents the enforcing Worker from silently applying them to the `v0.1.5` client without its warning UI.
 
 ### Consequences
 
-Hiding, route choice, timing, cover, and deception become more important than maintaining a faster running pace. Athletic movement still matters, and short ambiguous bursts are tolerated, but prolonged sprinting is no longer a dominant strategy. Conservative GPS enforcement adds rule and UI complexity and may miss some violations near buildings; false penalties are less acceptable than delayed enforcement. The current `v0.1.5` beta does not yet implement this decision.
+Hiding, route choice, timing, cover, and deception become more important than maintaining a faster running pace. Athletic movement still matters, and short ambiguous bursts are tolerated, but prolonged sprinting is no longer a dominant strategy. Conservative GPS enforcement adds rule and UI complexity and may miss some violations near buildings; false penalties are less acceptable than delayed enforcement. The implementation is on `main`; the current `v0.1.5` beta does not contain it.
 
 ### Implementation
 

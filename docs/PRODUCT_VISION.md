@@ -147,7 +147,7 @@ Field evidence outranks assumptions. Instrument matches, collect consented feedb
 
 - Complete the multi-phone gameplay and locked-screen field gate.
 - Establish acceptable real-world behavior for tags, traps, boundaries, reconnects, and audio.
-- Implement and field-tune the hider jogging limit with conservative GPS evidence, heads-up warnings, and an escalating consequence for sustained sprinting.
+- Publish and field-tune the implemented hider jogging limit with conservative GPS evidence, heads-up warnings, probation, and disqualification for sustained or repeated sprinting.
 - Tune distances, timing, and powers based on evidence and enjoyment.
 - Confirm groups can install, learn, finish, and replay without developer help.
 

@@ -9,7 +9,7 @@ The beta records a reconstructable timeline for each party. The client writes ev
 - Every non-GPS HTTP request outcome, every GPS transport/rejection failure, and WebSocket connect, message, error, close, retry, and fallback refresh
 - Every UI command, boundary drawing action, command payload, rejection, and authoritative state transition
 - Spoken gameplay audio start and failure, including the cue type and authoritative game-event correlation ID
-- Every authoritative GPS submission and result on the server; sampled native motion detail and battery/network health every 30 seconds; every rejection, boundary assessment, tag/trap effect, and related game event
+- Every authoritative GPS submission and result on the server; sampled native motion detail and battery/network health every 30 seconds; every rejection, boundary assessment, tag/trap effect, and related game event. Protocol-v3 speed decisions also retain native speed, accuracy-adjusted displacement, evaluated speed, warning/probation transitions, and disqualification outcomes.
 - Server clock transitions, snapshots, socket presence, duplicate commands, schema rejections, export requests, and rule results
 - JavaScript/React crashes locally and in Sentry when a DSN is configured; native crashes and symbolicated production stacks require Sentry configuration and source-map upload
 
@@ -33,7 +33,7 @@ Treat one finished-match export as the evidence bundle for each checklist run:
 4. Run `npm run analyze:field-test -- path/to/export.json` for a coordinate-free text report. Add `--json` for structured summary and decision evidence; that output also omits raw coordinates.
 5. Compare the report with the observer's notes from [GAMEPLAY_TEST_CHECKLIST.md](./GAMEPLAY_TEST_CHECKLIST.md). The export records what devices and the server observed, but cannot establish physical ground truth, notification visibility, or whether a real-world tag should have occurred.
 
-The analyzer reports per-player receipt intervals, sample age and accuracy distributions, locked-screen movement evidence, long gaps, network switches, battery change, reconnect duration, tag attempts, trap placement/trigger/release, boundary eliminations, and the nearest available GPS evidence for authoritative decisions. A **provisional-pass** means the data target passed; it does not replace the manual gameplay checks.
+The analyzer reports per-player receipt intervals, sample age and accuracy distributions, locked-screen movement evidence, long gaps, network switches, battery change, reconnect duration, tag attempts, trap placement/trigger/release, boundary eliminations, speed warnings/probations/disqualifications, and the nearest available GPS evidence for authoritative decisions. Structured speed decisions include the server's evaluated speed and its native/displacement components. A **provisional-pass** means the data target passed; it does not replace the manual gameplay checks.
 
 ## Crash service setup
 

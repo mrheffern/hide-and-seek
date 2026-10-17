@@ -479,6 +479,12 @@ function PartyPanel({
   const hiddenCountdown = hiddenMode?.activatesAt === undefined
     ? undefined
     : Math.max(0, Math.ceil((hiddenMode.activatesAt - now) / 1_000));
+  const speedWarningCountdown = self.speedLimit?.status === "warning" && self.speedLimit.warningEndsAt !== undefined
+    ? Math.max(0, Math.ceil((self.speedLimit.warningEndsAt - now) / 1_000))
+    : undefined;
+  const speedProbationCountdown = self.speedLimit?.status === "probation" && self.speedLimit.probationEndsAt !== undefined
+    ? Math.max(0, Math.ceil((self.speedLimit.probationEndsAt - now) / 1_000))
+    : undefined;
   return (
     <View style={styles.panel}>
       {snapshot.phase === "paused" ? (
@@ -527,15 +533,30 @@ function PartyPanel({
           <View style={styles.hiddenBadge}><Text style={styles.hiddenBadgeText}>HIDDEN</Text></View>
         ) : null}
       </View>
+      {speedWarningCountdown !== undefined ? (
+        <View style={styles.speedWarningBanner}>
+          <Text style={styles.speedWarningTitle}>SLOW DOWN · {speedWarningCountdown}s</Text>
+          <Text style={styles.speedWarningText}>
+            Stay below {snapshot.rules.hiderSpeedClearThresholdMetersPerSecond.toFixed(1)} m/s for {Math.ceil(snapshot.rules.hiderSpeedRecoveryMs / 1_000)} seconds or you will be disqualified.
+          </Text>
+        </View>
+      ) : speedProbationCountdown !== undefined ? (
+        <View style={styles.speedProbationBanner}>
+          <Text style={styles.speedProbationTitle}>SPEED PROBATION · {speedProbationCountdown}s</Text>
+          <Text style={styles.speedProbationText}>Another confirmed sprint during probation will disqualify you.</Text>
+        </View>
+      ) : null}
       {(snapshot.phase === "hiding" || snapshot.phase === "active") && self.status === "active" ? (
         self.role === "hider" ? (
-          <Text style={[styles.hiddenModeNotice, hiddenMode?.hidden && styles.hiddenModeNoticeActive]}>
-            {hiddenMode?.hidden
-              ? `Hidden · auto-tag blocked until sustained movement or ${snapshot.rules.hiddenModeExitDistanceMeters}m of reliable movement`
-              : hiddenCountdown !== undefined
-                ? `Hold still · Hidden Mode in ${hiddenCountdown}s`
-                : "Auto-tag active · hold still to enter Hidden Mode"}
-          </Text>
+          !self.speedLimit ? (
+            <Text style={[styles.hiddenModeNotice, hiddenMode?.hidden && styles.hiddenModeNoticeActive]}>
+              {hiddenMode?.hidden
+                ? `Hidden · auto-tag blocked until sustained movement or ${snapshot.rules.hiddenModeExitDistanceMeters}m of reliable movement`
+                : hiddenCountdown !== undefined
+                  ? `Hold still · Hidden Mode in ${hiddenCountdown}s`
+                  : "Auto-tag active · hold still to enter Hidden Mode"}
+            </Text>
+          ) : null
         ) : snapshot.phase === "active" ? (
           <Text style={styles.hiddenModeNotice}>
             Auto-tag is active. Use TAG when you physically find a stationary hidden player.
@@ -607,6 +628,7 @@ function Game({
   const [draft, setDraft] = useState<Coordinate[]>([]);
   const [boundaryFeedback, setBoundaryFeedback] = useState("");
   const previousBoundaryAlert = useRef<"near" | "outside" | undefined>(undefined);
+  const previousSpeedLimitStatus = useRef<"warning" | "probation" | undefined>(undefined);
   const isHost = snapshot.hostId === snapshot.selfId;
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now() + serverOffsetMs.current), 1_000);
@@ -623,6 +645,14 @@ function Game({
     }
     previousBoundaryAlert.current = next;
   }, [snapshot.nearBoundary, snapshot.outsideBoundary]);
+  useEffect(() => {
+    const self = snapshot.players.find((player) => player.id === snapshot.selfId);
+    const next = self?.speedLimit?.status;
+    if (next && next !== previousSpeedLimitStatus.current) {
+      Vibration.vibrate(next === "warning" ? [0, 400, 150, 400, 150, 400] : [0, 250, 120, 250]);
+    }
+    previousSpeedLimitStatus.current = next;
+  }, [snapshot.players, snapshot.selfId]);
   const onMapPress = (event: MapPressEvent) => {
     if (drawing && isHost && snapshot.phase === "lobby") {
       const coordinate = coordinateFromMapPress(event);
@@ -919,6 +949,12 @@ const styles = StyleSheet.create({
   hiddenBadgeText: { color: "#fff", fontSize: 12, fontWeight: "900", letterSpacing: 1 },
   hiddenModeNotice: { color: colors.ink, backgroundColor: "#fff5e8", borderRadius: 10, padding: 10, fontSize: 12, fontWeight: "700", textAlign: "center" },
   hiddenModeNoticeActive: { color: colors.greenDark, backgroundColor: "#e3f2e8" },
+  speedWarningBanner: { backgroundColor: "#fff0df", borderColor: colors.orange, borderWidth: 2, borderRadius: 12, padding: 12, gap: 4 },
+  speedWarningTitle: { color: "#8a3600", fontSize: 16, fontWeight: "900", textAlign: "center", letterSpacing: 0.5 },
+  speedWarningText: { color: colors.ink, fontSize: 12, fontWeight: "700", textAlign: "center" },
+  speedProbationBanner: { backgroundColor: "#fff8df", borderColor: "#d8a500", borderWidth: 2, borderRadius: 12, padding: 12, gap: 4 },
+  speedProbationTitle: { color: "#725600", fontSize: 15, fontWeight: "900", textAlign: "center", letterSpacing: 0.4 },
+  speedProbationText: { color: colors.ink, fontSize: 12, fontWeight: "700", textAlign: "center" },
   actionRow: { flexDirection: "row", gap: 10 },
   eventText: { color: colors.ink, fontSize: 13, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 8 },
   boundaryWarning: { color: colors.red, backgroundColor: "#fff0ee", borderRadius: 10, padding: 10, fontWeight: "800", textAlign: "center" },
