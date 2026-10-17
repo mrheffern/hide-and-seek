@@ -8,7 +8,7 @@ Keep this document short and current. Detailed procedures belong in the linked t
 
 **Prove the physical core loop on real phones.**
 
-The current build is the [`v0.1.5` Android prerelease](https://github.com/mrheffern/hide-and-seek/releases/tag/v0.1.5). It has the production Worker and Maps configuration, automatic tags with private Hidden Mode, proactive GPS recovery, authoritative GPS-based rules, durable diagnostics export, and spoken tag and trap cues. Automated tests and APK verification pass. Real-world multi-phone gameplay remains the gate.
+The current build is the [`v0.1.6` Android prerelease](https://github.com/mrheffern/hide-and-seek/releases/tag/v0.1.6). It has the production Worker and Maps configuration, automatic tags with private Hidden Mode, the experimental hider speed warning/probation rule, proactive GPS recovery, authoritative GPS-based rules, durable diagnostics export, and spoken tag and trap cues. Automated tests and APK verification pass. Real-world multi-phone gameplay remains the gate.
 
 Do not begin league-system development until this milestone passes or the field evidence clearly establishes what must change.
 
@@ -29,7 +29,7 @@ Do not treat the current build as having passed the gate. Preserve the exports a
 
 ### Approved gameplay change — hider jogging limit
 
-This rule is implemented on `main` under protocol version 3 but is not present in `v0.1.5`. It must ship as a coordinated Worker and app prerelease so the old client cannot be penalized without the new warning UI:
+This rule ships in `v0.1.6` under protocol version 3. The coordinated Worker rejects older clients so they cannot be penalized without the new warning UI:
 
 - [x] Add a server-authoritative movement limit for hiders while leaving seeker speed unrestricted.
 - [x] Let hiders move quickly enough to change hiding places, react after a seeker passes, and use an existing lead to reach cover. Do not let sustained sprinting turn an open-field pursuit into an unwinnable footrace for a slower seeker.
@@ -40,14 +40,15 @@ This rule is implemented on `main` under protocol version 3 but is not present i
 - [x] Deliver visible countdowns, vibration, and local locked-phone notifications without requiring the player to interact while moving.
 - [x] Record native speed, accuracy-adjusted displacement, evaluated speed, state transitions, resets, and final outcomes in diagnostics so disputed penalties can be reviewed.
 - [x] Add deterministic rule tests and the physical scenarios in section N of the gameplay checklist.
-- [ ] Publish the coordinated Worker and Android prerelease, then tune the experimental values through mixed-ability section N field tests rather than treating the initial numbers as final competitive rules.
+- [x] Publish the coordinated Worker and Android prerelease.
+- [ ] Tune the experimental values through mixed-ability section N field tests rather than treating the initial numbers as final competitive rules.
 
 ### 1. Prepare the test run
 
 - [ ] Recruit at least two testers and obtain at least two Android models; include a Pixel and Samsung-class phone when available.
 - [ ] Plan one three-player run in addition to the two-player role-swap runs.
 - [ ] Choose a safe field with open sky, a building edge, tree cover, marked distances, and a boundary that can be crossed deliberately.
-- [ ] Install `v0.1.5` on every phone and record the phone model, Android version, battery restrictions, network, and starting battery.
+- [ ] Install `v0.1.6` on every phone and record the phone model, Android version, battery restrictions, network, and starting battery.
 - [ ] Assign one person to record physical observations and timestamps instead of relying on what the app reports.
 - [ ] Prepare a private location for the exported diagnostics because they contain player names and precise movement history.
 

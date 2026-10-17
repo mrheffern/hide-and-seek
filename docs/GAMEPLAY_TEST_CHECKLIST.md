@@ -87,7 +87,7 @@ Run the measured-distance mechanics in open sky first. Repeat them near a buildi
 
 ## A. Install, permissions, maps, and service
 
-- [ ] **A1 — Install/update:** Install `v0.1.5` on every phone. Updating an earlier beta in place preserves the app and launches successfully. Confirm no older protocol-1 beta remains in the test group.
+- [ ] **A1 — Install/update:** Install `v0.1.6` on every phone. Updating an earlier beta in place preserves the app and launches successfully. Confirm no protocol-2 or older beta remains in the test group.
 - [ ] **A2 — Production endpoint:** Create a party over cellular with no development computer present. No error mentions `10.0.2.2` or cleartext HTTP.
 - [ ] **A3 — Map:** Satellite tiles load, the map centers near the phone after a fix, and pan/zoom remain responsive.
 - [ ] **A4 — Permissions:** Grant precise foreground location, background location, and notifications. Denying each permission produces a useful recovery message rather than a crash.
@@ -260,9 +260,9 @@ These checks cover the bundled media cues retained in `v0.1.3`. The app does not
 - [ ] **M8 — No replay:** Reconnect or reopen immediately after an event and confirm repeated snapshots do not replay the cue. Reopening later must not play an old event.
 - [ ] **M9 — Evidence:** The diagnostics export contains `audio/gameplay_sound_started`, or `audio/gameplay_sound_failed` if playback failed, correlated to the authoritative event ID on each intended phone.
 
-## N. Hider jogging limit — implemented on `main`, not in v0.1.5
+## N. Hider jogging limit — experimental in v0.1.6
 
-Do not run these against v0.1.5. Use the coordinated protocol-v3 Worker and implementing app prerelease. The initial preset is a 2.5 m/s target, warning after three seconds at or above 3.0 m/s, two seconds at or below 2.3 m/s to comply, a 10-second warning, and 30 seconds of probation. Include hiders and seekers with meaningfully different running ability.
+Use the coordinated protocol-v3 Worker and `v0.1.6` app. The initial preset is a 2.5 m/s target, warning after three seconds at or above 3.0 m/s, two seconds at or below 2.3 m/s to comply, a 10-second warning, and 30 seconds of probation. Include hiders and seekers with meaningfully different running ability.
 
 - [ ] **N1 — Ordinary relocation:** A hider jogging below the configured limit can change hiding places without warning or penalty.
 - [ ] **N2 — Brief burst:** A short acceleration, direction change, or isolated high native-speed sample does not count as sustained sprinting.

@@ -159,11 +159,11 @@ describe("server diagnostic integrity", () => {
     expect(sequences).toEqual([1, 2, 3]);
   });
 
-  it.each(["hiding", "active", "paused"] as const)("protects hidden positions from host export during %s", async (phase) => {
+  it.each(["hiding", "active", "paused"] as const)("allows only the host to export diagnostics during %s", async (phase) => {
     const state = stateFixture();
     state.phase = phase;
     const { request } = await roomFixture(state);
-    expect((await request("diagnostics")).status).toBe(409);
+    expect((await request("diagnostics")).status).toBe(200);
     expect((await request("diagnostics", "guest-token")).status).toBe(403);
   });
 });

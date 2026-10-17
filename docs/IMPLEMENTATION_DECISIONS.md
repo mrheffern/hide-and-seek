@@ -649,11 +649,11 @@ When a hider is materially faster than the seeker, an open chase can become unwi
 - Enforcement applies only during active play. Seekers, the hiding countdown, and paused time are exempt. Weak or stale fixes and observation gaps suspend evaluation rather than counting against the player.
 - Feedback uses a visible countdown, vibration, and local notification. A future spoken warning can supplement these signals without changing the authoritative rule.
 - Diagnostics retain native speed, accuracy-adjusted displacement, the evaluated speed, state transitions, and the final outcome so organizers can review disputed penalties without treating one native estimate as unquestionable ground truth.
-- These values are configurable experimental rules. Mixed-ability field tests must establish them before competitive use, and protocol version 3 prevents the enforcing Worker from silently applying them to the `v0.1.5` client without its warning UI.
+- These values are configurable experimental rules. Mixed-ability field tests must establish them before competitive use, and protocol version 3 prevents the enforcing Worker from silently applying them to pre-v0.1.6 clients without the warning UI.
 
 ### Consequences
 
-Hiding, route choice, timing, cover, and deception become more important than maintaining a faster running pace. Athletic movement still matters, and short ambiguous bursts are tolerated, but prolonged sprinting is no longer a dominant strategy. Conservative GPS enforcement adds rule and UI complexity and may miss some violations near buildings; false penalties are less acceptable than delayed enforcement. The implementation is on `main`; the current `v0.1.5` beta does not contain it.
+Hiding, route choice, timing, cover, and deception become more important than maintaining a faster running pace. Athletic movement still matters, and short ambiguous bursts are tolerated, but prolonged sprinting is no longer a dominant strategy. Conservative GPS enforcement adds rule and UI complexity and may miss some violations near buildings; false penalties are less acceptable than delayed enforcement. The experimental implementation ships in `v0.1.6`.
 
 ### Implementation
 

@@ -193,9 +193,6 @@ export class GameRoom extends DurableObject<Env> {
     if (!this.room || this.room.hostId !== playerId) {
       return apiError("host_only", "Only the host can export diagnostics.", 403);
     }
-    if (this.room.phase !== "lobby" && this.room.phase !== "finished") {
-      return apiError("match_in_progress", "Export diagnostics after the game ends so hidden locations stay private.", 409);
-    }
     const after = Math.max(0, Number.parseInt(url.searchParams.get("after") ?? "0", 10) || 0);
     const limit = Math.max(1, Math.min(1_000, Number.parseInt(url.searchParams.get("limit") ?? "500", 10) || 500));
     const matchId = url.searchParams.get("matchId")?.slice(0, 100);
